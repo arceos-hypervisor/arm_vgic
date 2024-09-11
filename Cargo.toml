@@ -1,0 +1,15 @@
+[package]
+name = "arm_vgic"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+axdevice_base = { path = "../axdevice_crates/axdevice_base" }
+axaddrspace  = { path = "../axaddrspace" }
+memory_addr = "0.3.0"
+axerrno = "0.1.0"
+arm_gicv2 = { git = "https://github.com/luodeb/arm_gicv2.git", rev = "2289063" }
+log = "=0.4.22"
+
+spin = "0.9"
