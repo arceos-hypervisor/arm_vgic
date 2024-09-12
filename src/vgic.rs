@@ -9,6 +9,8 @@ use spin::Mutex;
 
 use crate::consts::*;
 use crate::vgicc::Vgicc;
+// use crate_interface::call_interface;
+// pub use vcpu_if::*;
 
 struct VgicInner {
     used_irq: [u32; SPI_ID_MAX / 32],
@@ -66,6 +68,10 @@ impl Vgic {
     pub(crate) fn handle_write8(&self, addr: usize, val: usize) {
         match addr {
             VGICD_CTLR => {
+                error!("ctrl emu");
+                // let curr_vcpu_id = call_interface!(VcpuIf::current_vcpu_id());
+                // error!("current vcpu id: {}", curr_vcpu_id);
+
                 // 这里只关心写入的最后两位，也就是 grp0 grp1
                 let mut vgic_inner = self.inner.lock();
                 vgic_inner.ctrlr = (val & 0b11) as u32;
@@ -86,7 +92,13 @@ impl Vgic {
                     }
                 }
                 // TODO: 告知其它PE开启或关闭相应中断
-            }
+            },
+            VGICD_ISENABLER_SGI_PPI..=VGICD_ISENABLER_SPI => {
+                self.handle_write32(addr, val);
+            },
+            VGICD_ISENABLER_SPI..=VGICD_ICENABLER_SGI_PPI => {
+                
+            },
             _ => {
                 error!("Unkonwn addr: {:#x}", addr);
             }
@@ -96,18 +108,26 @@ impl Vgic {
     pub(crate) fn handle_write16(&self, addr: usize, val: usize) {
         match addr {
             VGICD_CTLR => self.handle_write8(addr, val),
+            VGICD_ISENABLER_SGI_PPI..=VGICD_ISENABLER_SPI => {
+                self.handle_write32(addr, val);
+            },
             _ => {
                 error!("Unkonwn addr: {:#x}", addr);
-            }
+            },
+            
         }
     }
 
     pub(crate) fn handle_write32(&self, addr: usize, val: usize) {
         match addr {
             VGICD_CTLR => self.handle_write8(addr, val),
+            VGICD_ISENABLER_SGI_PPI..=VGICD_ISENABLER_SPI => {
+                error!("enabler emu");
+            },
             _ => {
                 error!("Unkonwn addr: {:#x}", addr);
-            }
+            },
+            
         }
     }
 }
