@@ -9,9 +9,10 @@ axdevice_base = { git = "https://github.com/arceos-hypervisor/axdevice_crates.gi
 axaddrspace = { git = "https://github.com/arceos-hypervisor/axaddrspace.git" }
 memory_addr = "0.3"
 axerrno = "0.1.0"
-arm_gicv2 = { git = "https://github.com/luodeb/arm_gicv2.git", rev = "2289063" }
+arm_gicv2 = { git = "https://github.com/arceos-hypervisor/arm_gicv2.git" }
 log = "0.4.21"
 # vcpu_if = { path = "../vcpu_if" }
 # crate_interface = "0.1.3"
-
+axhal = { git = "https://github.com/arceos-hypervisor/arceos.git", branch = "vmm" }
 spin = "0.9"
+tock-registers = "0.8"
