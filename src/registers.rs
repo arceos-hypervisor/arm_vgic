@@ -1,90 +1,90 @@
-// 定义生成寄存器枚举的宏
+// Macro to define GIC register enums
 macro_rules! generate_gic_registers {
     (
-        // 单个寄存器定义
+        // Single register definitions
         singles {
             $(
-                $single_name:ident = $single_offset:expr
+                $single_name:ident = $single_offset:expr // Single register name and offset
             ),* $(,)?
         }
-        // 范围寄存器定义
+        // Range register definitions
         ranges {
             $(
                 $range_name:ident = {
-                    offset: $range_offset:expr,
-                    size: $range_size:expr
+                    offset: $range_offset:expr, // Range register base offset
+                    size: $range_size:expr // Number of registers in the range
                 }
             ),* $(,)?
         }
     ) => {
         #[derive(Debug, Clone, Copy, PartialEq)]
         pub enum GicRegister {
-            // 生成单个寄存器变体
+            // Generate single register variants
             $(
-                $single_name,
+                $single_name, // Single register variant
             )*
-            // 生成范围寄存器变体（带索引）
+            // Generate range register variants (with index)
             $(
-                $range_name(u32),
+                $range_name(u32), // Range register variant with index
             )*
         }
 
         impl GicRegister {
 
-            // 从地址转换为寄存器枚举
+            // Convert address to register enum
             pub fn from_addr(addr: u32) -> Option<Self> {
                 match addr {
-                    // 匹配单个寄存器
+                    // Match single registers
                     $(
-                        addr if addr == $single_offset => Some(Self::$single_name),
+                        addr if addr == $single_offset => Some(Self::$single_name), // Single register match
                     )*
-                    // 匹配范围寄存器
+                    // Match range registers
                     $(
                         addr if addr >= $range_offset && addr < $range_offset + ($range_size * 4) => {
-                            let idx = (addr - $range_offset) / 4;
+                            let idx = (addr - $range_offset) / 4; // Calculate index
                             if idx < $range_size {
-                                Some(Self::$range_name(idx))
+                                Some(Self::$range_name(idx)) // Range register match
                             } else {
                                 None
                             }
                         },
                     )*
-                    _ => None,
+                    _ => None, // No match
                 }
             }
         }
     };
 }
 
-// 使用宏生成具体的寄存器定义
+// Use the macro to generate specific register definitions
 generate_gic_registers! {
     singles {
-        // 分发器控制寄存器
+        // Distributor Control Register
         GicdCtlr = 0x0000,
-        // 分发器类型寄存器
+        // Distributor Type Register
         GicdTyper = 0x0004,
-        // 分发器实现识别寄存器
+        // Distributor Implementer Identification Register
         GicdIidr = 0x0008,
-        // 分发器状态寄存器
+        // Distributor Status Register
         GicdStatusr = 0x0010,
     }
     ranges {
-        // 中断组寄存器
+        // Interrupt Group Register
         GicdIgroupr = {
             offset: 0x0080,
             size: 32
         },
-        // 中断使能设置寄存器
+        // Interrupt Enable Set Register
         GicdIsenabler = {
             offset: 0x0100,
             size: 32
         },
-        // 中断使能清除寄存器
+        // Interrupt Enable Clear Register
         GicdIcenabler = {
             offset: 0x0180,
             size: 32
         },
-        // 中断pending设置寄存器
+        // Interrupt Pending Set Register
         GicdIspendr = {
             offset: 0x0200,
             size: 32
@@ -93,46 +93,57 @@ generate_gic_registers! {
             offset: 0x0280,
             size: 32
         },
+        // Interrupt Active Set Register
         GicdIsactiver = {
             offset: 0x0300,
             size: 32
         },
+        // Interrupt Active Clear Register
         GicdIcactiver = {
             offset: 0x0380,
             size: 32
         },
+        // Interrupt Priority Register
         GicdIpriorityr = {
             offset: 0x0400,
             size: 256
         },
+        // Interrupt Target Register
         GicdItargetsr = {
             offset: 0x0800,
             size: 256
         },
+        // Interrupt Configuration Register
         GicdIcfgr = {
             offset: 0x0c00,
             size: 64
         },
+        // PPI Status Register
         GicdPpisr = {
             offset: 0x0d00,
             size: 32
         },
+        // SPI Status Register
         GicdSpisr = {
             offset: 0x0d04,
             size: 32
         },
+        // Non-Secure Access Control Register
         GicdNsacr = {
             offset: 0x0e00,
             size: 32
         },
+        // Software Generated Interrupt Register
         GicdSgir = {
             offset: 0x0f00,
             size: 32
         },
+        // Pending Software Generated Interrupt Register
         GicdCpendsgir = {
             offset: 0x0f10,
             size: 32
         },
+        // Software Generated Interrupt Pending Register
         GicdSpendsgir = {
             offset: 0x0f20,
             size: 32
