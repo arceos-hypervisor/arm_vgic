@@ -2,6 +2,7 @@ use axdevice_base::BaseDeviceOps;
 use axdevice_base::EmuDeviceType;
 
 use axaddrspace::GuestPhysAddr;
+use axdevice_base::VCpuIf;
 use axerrno::AxResult;
 use memory_addr::AddrRange;
 
@@ -42,7 +43,7 @@ impl BaseDeviceOps for Vgic {
     ///
     /// Returns:
     /// - `AxResult<usize>`: The result of the read operation, including any errors and the size of the data read.
-    fn handle_read(&self, addr: GuestPhysAddr, width: usize) -> AxResult<usize> {
+    fn handle_read(&self, addr: GuestPhysAddr, width: usize, vcpu: &dyn VCpuIf) -> AxResult<usize> {
         // Perform bitwise operation to ensure the address is aligned to byte boundaries
         let addr = addr.as_usize() & 0xfff;
 
@@ -50,15 +51,15 @@ impl BaseDeviceOps for Vgic {
         match width {
             1 => {
                 // Handle 1-byte read
-                return self.handle_read8(addr);
+                return self.handle_read8(addr, vcpu);
             }
             2 => {
                 // Handle 2-byte read
-                return self.handle_read16(addr);
+                return self.handle_read16(addr, vcpu);
             }
             4 => {
                 // Handle 4-byte read
-                return self.handle_read32(addr);
+                return self.handle_read32(addr, vcpu);
             }
             // Return success for unsupported widths without performing any operation
             _ => Ok(0),
@@ -74,7 +75,7 @@ impl BaseDeviceOps for Vgic {
     /// - `addr`: The physical address to write to.
     /// - `width`: The byte width of the data to be written (1, 2, 4 for 8-bit, 16-bit, and 32-bit data respectively).
     /// - `val`: The value to be written.
-    fn handle_write(&self, addr: GuestPhysAddr, width: usize, val: usize) {
+    fn handle_write(&self, addr: GuestPhysAddr, width: usize, val: usize, vcpu: &dyn VCpuIf) {
         // Convert the physical address to a `usize` and apply a mask to ensure proper alignment
         let addr = addr.as_usize() & 0xfff;
 
@@ -82,15 +83,15 @@ impl BaseDeviceOps for Vgic {
         match width {
             1 => {
                 // Handle 8-bit write operation
-                self.handle_write8(addr, val);
+                self.handle_write8(addr, val, vcpu);
             }
             2 => {
                 // Handle 16-bit write operation
-                self.handle_write16(addr, val);
+                self.handle_write16(addr, val, vcpu);
             }
             4 => {
                 // Handle 32-bit write operation
-                self.handle_write32(addr, val);
+                self.handle_write32(addr, val, vcpu);
             }
             // For other width values, do nothing
             _ => {}
