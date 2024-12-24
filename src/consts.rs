@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// Maximum ID for Software Generated Interrupts (SGI)
 pub(crate) const SGI_ID_MAX: usize = 16;
 /// Maximum ID for Private Peripheral Interrupts (PPI), range: 16-31
@@ -9,7 +11,7 @@ pub(crate) const GICH_LR_NUM: usize = 4;
 
 /* GIC Distributor Register Offsets */
 /// Control Register
-pub(crate) const VGICD_CTRL: usize = 0x0000;
+pub(crate) const VGICD_CTLR: usize = 0x0000;
 /// Type Register
 pub(crate) const VGICD_TYPER: usize = 0x0004;
 /// Implementer Identification Register

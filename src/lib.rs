@@ -9,3 +9,5 @@ mod consts;
 // mod vgicc;
 mod interrupt;
 mod list_register;
+mod registers;
+mod vgicd;
