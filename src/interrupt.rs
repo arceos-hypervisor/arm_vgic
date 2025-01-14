@@ -1,5 +1,21 @@
 use crate::consts::{PPI_ID_MAX, SGI_ID_MAX, SPI_ID_MAX};
-use arm_gicv2::{InterruptType, TriggerMode};
+use axhal::irq::MyVgic;
+use log::debug;
+
+/// Interrupt trigger mode.
+#[derive(Debug, Clone, Copy)]
+pub enum TriggerMode {
+    Edge = 0,
+    Level = 1,
+}
+
+/// Different types of interrupt that the GIC handles.
+#[derive(Debug, Clone, Copy)]
+pub enum InterruptType {
+    SGI,
+    PPI,
+    SPI,
+}
 
 #[derive(Debug, Clone, Copy)]
 enum InterruptStatus {
@@ -15,7 +31,7 @@ pub struct Interrupt {
     vcpu_id: u32,
     priority: u32,
     status: InterruptStatus,
-    active: bool,
+    enable: bool,
     trigger_mode: TriggerMode,
     interrupt_type: InterruptType,
 }
@@ -27,7 +43,7 @@ impl Interrupt {
             vcpu_id,
             priority: 0,
             status: InterruptStatus::Inactive,
-            active: false,
+            enable: false,
             trigger_mode: TriggerMode::Edge,
             interrupt_type: InterruptType::SGI,
         }
@@ -35,7 +51,7 @@ impl Interrupt {
 }
 
 #[derive(Copy, Clone)]
-pub(crate) struct VgicInt {
+pub struct VgicInt {
     inner: Interrupt,
 }
 
@@ -56,19 +72,21 @@ impl VgicInt {
     }
 
     pub(crate) fn set_enable(&mut self, enable: bool) {
-        let mut interrupt = self.inner;
-        interrupt.active = enable;
+        self.inner.enable = enable;
+        debug!(
+            "Setting interrupt {} enable to {}",
+            self.inner.interrupt_id, enable
+        );
         // if !gicd.get_enable()
         // gicd.set_enable(self.interrupt_id, enable);
     }
 
     pub(crate) fn get_enable(&self) -> bool {
-        self.inner.active
+        self.inner.enable
     }
 
     pub(crate) fn set_priority(&mut self, priority: u32) {
-        let mut interrupt = self.inner;
-        interrupt.priority = priority;
+        self.inner.priority = priority;
         // gicd.set_priority(self.interrupt_id, priority);
     }
 
@@ -77,8 +95,7 @@ impl VgicInt {
     }
 
     pub(crate) fn set_vcpu_id(&mut self, vcpu_id: u32) {
-        let mut interrupt = self.inner;
-        interrupt.vcpu_id = vcpu_id;
+        self.inner.vcpu_id = vcpu_id;
     }
 
     pub(crate) fn get_vcpu_id(&self) -> u32 {
@@ -86,8 +103,7 @@ impl VgicInt {
     }
 
     pub(crate) fn set_status(&mut self, status: InterruptStatus) {
-        let mut interrupt = self.inner;
-        interrupt.status = status;
+        self.inner.status = status;
     }
 
     pub(crate) fn get_status(&self) -> InterruptStatus {
@@ -95,8 +111,7 @@ impl VgicInt {
     }
 
     pub(crate) fn set_trigger_mode(&mut self, trigger_mode: TriggerMode) {
-        let mut interrupt = self.inner;
-        interrupt.trigger_mode = trigger_mode;
+        self.inner.trigger_mode = trigger_mode;
     }
 
     pub(crate) fn get_trigger_mode(&self) -> &TriggerMode {
@@ -107,7 +122,19 @@ impl VgicInt {
         &self.inner.interrupt_type
     }
 
-    pub(crate) fn inject_irq(&self) {
-        // todo!
+    pub fn inject_irq(&self) -> bool {
+        if self.inner.enable == false {
+            return false;
+        }
+        debug!("Injecting interrupt {}", self.inner.interrupt_id);
+        let gich = MyVgic::get_gich();
+        let hcr = gich.get_hcr();
+        gich.set_hcr(hcr | 1 << 0);
+        let mut lr = 0;
+        lr |= self.inner.interrupt_id << 0;
+        lr |= 1 << 19;
+        lr |= 1 << 28;
+        gich.set_lr(0, lr);
+        true
     }
 }

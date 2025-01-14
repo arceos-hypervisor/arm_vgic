@@ -1,6 +1,8 @@
 extern crate alloc;
 use crate::consts::{PPI_ID_MAX, SGI_ID_MAX, SPI_ID_MAX};
 use crate::interrupt::VgicInt;
+use axhal::irq::MyVgic;
+use log::debug;
 
 pub struct Vgicd {
     pub ctrlr: u32,
@@ -11,14 +13,17 @@ pub struct Vgicd {
 
 impl Vgicd {
     pub fn new() -> Self {
+        debug!("vgic jhsgdfjcv");
         let mut gic_int = [VgicInt::new(0, 0); SPI_ID_MAX];
         for (idx, item) in gic_int.iter_mut().enumerate() {
             *item = VgicInt::new(idx as u32, 0);
         }
+        // let gicd = MyVgic::get_gicd();
+        debug!("vgic lshdkfj");
         Self {
             ctrlr: 0,
-            typer: 0,
-            iidr: 0,
+            typer: 256, //gicd.lock().get_typer(),
+            iidr: 0,    //gicd.lock().get_iidr(),
             interrupt: gic_int,
         }
     }
@@ -47,5 +52,9 @@ impl Vgicd {
 
     pub fn inject_irq(&self, irq: u32) {
         self.interrupt[irq as usize].inject_irq();
+    }
+
+    pub fn fetch_irq(&self, idx: u32) -> VgicInt {
+        self.interrupt[idx as usize]
     }
 }

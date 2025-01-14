@@ -1,5 +1,6 @@
 use log::error;
 
+use crate::interrupt::VgicInt;
 use crate::registers::GicRegister;
 use crate::vgicd::Vgicd;
 use axdevice_base::VCpuIf;
@@ -31,17 +32,20 @@ impl Vgic {
         match GicRegister::from_addr(addr as u32) {
             Some(reg) => match reg {
                 GicRegister::GicdCtlr => Ok(self.vgicd.lock().ctrlr as usize),
-                // GicRegister::GicdTyper => Ok(self.vgicd.lock().typer as usize),
-                // GicRegister::GicdIidr => Ok(self.vgicd.lock().iidr as usize),
+                GicRegister::GicdTyper => Ok(self.vgicd.lock().typer as usize),
+                GicRegister::GicdIidr => Ok(self.vgicd.lock().iidr as usize),
                 // // GicRegister::GicdStatusr => self.read_statusr(),
                 // // GicRegister::GicdIgroupr(idx) => self.read_igroupr(idx),
-                // GicRegister::GicdIsenabler(idx) => Ok(self.vgicd.lock().vgicd_isenabler_read(idx)),
+                GicRegister::GicdIsenabler(idx) => Ok(self.vgicd.lock().vgicd_isenabler_read(idx)),
                 // GicRegister::GicdIcenabler(idx) => self.read_icenabler(idx),
                 // GicRegister::GicdIspendr(idx) => self.read_ispendr(idx),
-                _ => Ok(0),
+                _ => {
+                    // error!("Read register address: {:#x}", addr);
+                    Ok(0)
+                }
             },
             None => {
-                error!("Invalid read register address: {addr:#x}");
+                //error!("Invalid read register address: {addr:#x}");
                 Ok(0)
             }
         }
@@ -64,15 +68,21 @@ impl Vgic {
                     GicRegister::GicdIsenabler(idx) => {
                         self.vgicd.lock().vgicd_isenabler_write(idx, value)
                     }
-                    _ => self.nothing(0),
+                    _ => {
+                        //error!("Write register address: {:#x}", addr);
+                    }
                 }
             }
-            None => error!("Invalid write register address: {addr:#x}"),
+            None => {} //error!("Invalid write register address: {addr:#x}"),
         }
     }
 
     pub fn inject_irq(&self, irq: u32) {
         self.vgicd.lock().inject_irq(irq);
+    }
+
+    pub fn fetch_irq(&self, irq: u32) -> VgicInt {
+        self.vgicd.lock().fetch_irq(irq)
     }
 
     pub fn nothing(&self, _value: u32) {}
