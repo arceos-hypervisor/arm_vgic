@@ -3,7 +3,6 @@ use log::error;
 use crate::interrupt::VgicInt;
 use crate::registers::GicRegister;
 use crate::vgicd::Vgicd;
-use axdevice_base::VCpuIf;
 use axerrno::AxResult;
 use spin::Mutex;
 
@@ -18,17 +17,17 @@ impl Vgic {
             vgicd: Mutex::new(Vgicd::new()),
         }
     }
-    pub(crate) fn handle_read8(&self, addr: usize, vcpu: &dyn VCpuIf) -> AxResult<usize> {
-        let value = self.handle_read32(addr, vcpu)?;
+    pub(crate) fn handle_read8(&self, addr: usize) -> AxResult<usize> {
+        let value = self.handle_read32(addr)?;
         return Ok((value >> (8 * (addr & 0x3))) & 0xff);
     }
 
-    pub(crate) fn handle_read16(&self, addr: usize, vcpu: &dyn VCpuIf) -> AxResult<usize> {
-        let value = self.handle_read32(addr, vcpu)?;
+    pub(crate) fn handle_read16(&self, addr: usize) -> AxResult<usize> {
+        let value = self.handle_read32(addr)?;
         return Ok((value >> (8 * (addr & 0x3))) & 0xffff);
     }
 
-    pub fn handle_read32(&self, addr: usize, _vcpu: &dyn VCpuIf) -> AxResult<usize> {
+    pub fn handle_read32(&self, addr: usize) -> AxResult<usize> {
         match GicRegister::from_addr(addr as u32) {
             Some(reg) => match reg {
                 GicRegister::GicdCtlr => Ok(self.vgicd.lock().ctrlr as usize),
@@ -51,15 +50,15 @@ impl Vgic {
         }
     }
 
-    pub fn handle_write8(&self, addr: usize, value: usize, vcpu: &dyn VCpuIf) {
-        self.handle_write32(addr, value, vcpu);
+    pub fn handle_write8(&self, addr: usize, value: usize) {
+        self.handle_write32(addr, value);
     }
 
-    pub fn handle_write16(&self, addr: usize, value: usize, vcpu: &dyn VCpuIf) {
-        self.handle_write32(addr, value, vcpu);
+    pub fn handle_write16(&self, addr: usize, value: usize) {
+        self.handle_write32(addr, value);
     }
 
-    pub fn handle_write32(&self, addr: usize, value: usize, _vcpu: &dyn VCpuIf) {
+    pub fn handle_write32(&self, addr: usize, value: usize) {
         match GicRegister::from_addr(addr as u32) {
             Some(reg) => {
                 match reg {

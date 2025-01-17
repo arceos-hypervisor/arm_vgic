@@ -18,12 +18,13 @@ impl Vgicd {
         for (idx, item) in gic_int.iter_mut().enumerate() {
             *item = VgicInt::new(idx as u32, 0);
         }
-        // let gicd = MyVgic::get_gicd();
-        debug!("vgic lshdkfj");
+        let gicd = MyVgic::get_gicd();
+        let typer = gicd.lock().get_typer();
+        let iidr = gicd.lock().get_iidr();
         Self {
             ctrlr: 0,
-            typer: 256, //gicd.lock().get_typer(),
-            iidr: 0,    //gicd.lock().get_iidr(),
+            typer,
+            iidr,
             interrupt: gic_int,
         }
     }
