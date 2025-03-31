@@ -127,14 +127,6 @@ impl VgicInt {
             return false;
         }
         debug!("Injecting interrupt {}", self.inner.interrupt_id);
-        let gich = MyVgic::get_gich();
-        let hcr = gich.get_hcr();
-        gich.set_hcr(hcr | 1 << 0);
-        let mut lr = 0;
-        lr |= self.inner.interrupt_id << 0;
-        lr |= 1 << 19;
-        lr |= 1 << 28;
-        gich.set_lr(0, lr);
         true
     }
 }

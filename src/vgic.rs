@@ -5,6 +5,7 @@ use crate::registers::GicRegister;
 use crate::vgicd::Vgicd;
 use axerrno::AxResult;
 use spin::Mutex;
+use axvisor_api::vmm::{current_vm_vcpu_num, current_vcpu_id};
 
 // 实现 Vgic
 pub struct Vgic {
@@ -59,6 +60,7 @@ impl Vgic {
     }
 
     pub fn handle_write32(&self, addr: usize, value: usize) {
+        let vcpu_id = current_vcpu_id();
         match GicRegister::from_addr(addr as u32) {
             Some(reg) => {
                 match reg {

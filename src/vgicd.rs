@@ -13,7 +13,6 @@ pub struct Vgicd {
 
 impl Vgicd {
     pub fn new() -> Self {
-        debug!("vgic jhsgdfjcv");
         let mut gic_int = [VgicInt::new(0, 0); SPI_ID_MAX];
         for (idx, item) in gic_int.iter_mut().enumerate() {
             *item = VgicInt::new(idx as u32, 0);
