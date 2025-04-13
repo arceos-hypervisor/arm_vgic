@@ -1,5 +1,3 @@
-use log::error;
-
 use crate::interrupt::VgicInt;
 use crate::registers::GicRegister;
 use crate::vgicd::Vgicd;
@@ -78,9 +76,10 @@ impl Vgic {
         }
     }
 
-    pub fn inject_irq(&self, irq: u32) {
-        self.vgicd.lock().inject_irq(irq);
-    }
+    // Removed, interrupt injection in arm_vcpu
+    // pub fn inject_irq(&self, irq: u32) {
+    //     self.vgicd.lock().inject_irq(irq);
+    // }
 
     pub fn fetch_irq(&self, irq: u32) -> VgicInt {
         self.vgicd.lock().fetch_irq(irq)

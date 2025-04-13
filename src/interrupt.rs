@@ -1,5 +1,4 @@
 use crate::consts::{PPI_ID_MAX, SGI_ID_MAX, SPI_ID_MAX};
-use axhal::irq::MyVgic;
 use log::debug;
 
 /// Interrupt trigger mode.
@@ -120,13 +119,5 @@ impl VgicInt {
 
     pub(crate) fn get_interrupt_type(&self) -> &InterruptType {
         &self.inner.interrupt_type
-    }
-
-    pub fn inject_irq(&self) -> bool {
-        if self.inner.enable == false {
-            return false;
-        }
-        debug!("Injecting interrupt {}", self.inner.interrupt_id);
-        true
     }
 }
