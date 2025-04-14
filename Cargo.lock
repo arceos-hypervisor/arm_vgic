@@ -14,7 +14,7 @@ dependencies = [
 [[package]]
 name = "arm_gicv2"
 version = "0.1.0"
-source = "git+https://github.com/arceos-hypervisor/arm_gicv2.git#eee14941d490719f6689e82f9a87caea6767bdc3"
+source = "git+https://github.com/arceos-hypervisor/arm_gicv2.git?branch=debin%2F2vm_timer#0ad077649e030b9836a5dc55a5a01b1fd0246e11"
 dependencies = [
  "tock-registers 0.8.1",
 ]
