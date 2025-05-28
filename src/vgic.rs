@@ -2,8 +2,8 @@ use crate::interrupt::VgicInt;
 use crate::registers::GicRegister;
 use crate::vgicd::Vgicd;
 use axerrno::AxResult;
+use axvisor_api::vmm::{current_vcpu_id, current_vm_vcpu_num};
 use spin::Mutex;
-use axvisor_api::vmm::{current_vm_vcpu_num, current_vcpu_id};
 
 // 实现 Vgic
 pub struct Vgic {
