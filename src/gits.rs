@@ -17,7 +17,7 @@ use crate::{
 };
 
 #[derive(Default)]
-struct VirtualGitsRegs {
+pub struct VirtualGitsRegs {
     pub ct_baser: usize,
     pub dt_baser: usize,
 
@@ -26,7 +26,7 @@ struct VirtualGitsRegs {
     pub cwriter: usize,
 }
 
-struct Gits {
+pub struct Gits {
     pub addr: GuestPhysAddr,
     pub size: usize,
 
@@ -217,43 +217,6 @@ impl Cmdq {
         }
     }
 
-    fn set_cbaser(&mut self, zone_id: usize, value: usize) {
-        assert!(zone_id < MAX_ZONE_NUM, "Invalid zone id!");
-        self.cbaser_list[zone_id] = value;
-        self.phy_base_list[zone_id] = value & 0xffffffffff000;
-    }
-
-    fn read_baser(&self, zone_id: usize) -> usize {
-        assert!(zone_id < MAX_ZONE_NUM, "Invalid zone id!");
-        self.cbaser_list[zone_id]
-    }
-
-    fn set_cwriter(&mut self, zone_id: usize, value: usize) {
-        assert!(zone_id < MAX_ZONE_NUM, "Invalid zone id!");
-        if value == 0 {
-            trace!("ignore first write");
-        } else {
-            self.insert_cmd(zone_id, value);
-        }
-
-        self.cwriter_list[zone_id] = value;
-    }
-
-    fn read_cwriter(&mut self, zone_id: usize) -> usize {
-        assert!(zone_id < MAX_ZONE_NUM, "Invalid zone id!");
-        self.cwriter_list[zone_id]
-    }
-
-    fn read_creadr(&mut self, zone_id: usize) -> usize {
-        assert!(zone_id < MAX_ZONE_NUM, "Invalid zone id!");
-        self.creadr_list[zone_id]
-    }
-
-    fn update_creadr(&mut self, zone_id: usize, writer: usize) {
-        assert!(zone_id < MAX_ZONE_NUM, "Invalid zone id!");
-        self.creadr_list[zone_id] = writer;
-    }
-
     // it's ok to add qemu-args: -trace gicv3_gits_cmd_*, remember to remain `enable one lpi`
     fn analyze_cmd(&self, value: [u64; 4]) {
         let code = (value[0] & 0xff) as usize;
@@ -338,7 +301,7 @@ impl Cmdq {
 
         for _cmd_id in 0..cmd_num {
             let vm_cmdq_ptr = phys_to_virt(vm_cmdq_addr).as_mut_ptr_of::<[u64; QWORD_PER_CMD]>();
-            let real_cmdq_ptr = phys_to_virt(real_cmdq_addr).as_mut_ptr_of::<u64>();
+            let mut real_cmdq_ptr = phys_to_virt(real_cmdq_addr).as_mut_ptr_of::<u64>();
             
             unsafe {
                 let v = ptr::read_volatile(vm_cmdq_ptr);
@@ -347,22 +310,25 @@ impl Cmdq {
                 for i in 0..QWORD_PER_CMD {
                     ptr::write_volatile(real_cmdq_ptr, v[i] as u64);
                     real_cmdq_addr += 8;
-                    real_cmdq_ptr.add(1);
+                    real_cmdq_ptr = real_cmdq_ptr.add(1);
                 }
             }
             vm_cmdq_addr += BYTES_PER_CMD;
-            vm_cmdq_addr = (ring_ptr_update(vm_cmdq_addr.into() - vm_addr) + vm_addr).into();
+            vm_cmdq_addr = (ring_ptr_update(vm_cmdq_addr.as_usize() - vm_addr) + vm_addr).into();
             real_cmdq_addr = (ring_ptr_update(real_cmdq_addr - self.phy_addr) + self.phy_addr.as_usize()).into();
         }
 
         self.writer += cmd_size;
         self.writer = ring_ptr_update(self.writer); // ring buffer ptr
-        let cwriter = host_gits_base() + GITS_CWRITER;
-        let readr = host_gits_base() + GITS_CREADR;
+        let cwriter_addr = self.host_gits_base + GITS_CWRITER;
+        let creadr_addr = self.host_gits_base + GITS_CREADR;
+
+        let cwriter_ptr = phys_to_virt(cwriter_addr).as_mut_ptr_of::<u64>();
+        let creadr_ptr = phys_to_virt(creadr_addr).as_mut_ptr_of::<u64>();
         unsafe {
-            ptr::write_volatile(cwriter as *mut u64, self.writer as _);
+            ptr::write_volatile(cwriter_ptr, self.writer as _);
             loop {
-                self.readr = (ptr::read_volatile(readr as *mut u64)) as usize; // hw readr
+                self.readr = (ptr::read_volatile(creadr_ptr)) as usize; // hw readr
                 if self.readr == self.writer {
                     trace!(
                         "readr={:#x}, writer={:#x}, its cmd end",
@@ -370,7 +336,6 @@ impl Cmdq {
                         self.writer
                     );
                     break;
-                } else {
                 }
             }
         }
@@ -397,4 +362,8 @@ fn ring_ptr_update(val: usize) -> usize {
     } else {
         val
     }
+}
+
+pub fn enable_one_lpi(lpi: usize) {
+    todo!("enable one lpi: {lpi}");
 }
