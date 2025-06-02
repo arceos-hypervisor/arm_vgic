@@ -20,10 +20,18 @@ pub(crate) fn perform_mmio_write(
     let addr = axvisor_api::memory::phys_to_virt(addr).as_mut_ptr();
 
     match width {
-        AccessWidth::Byte => unsafe { (addr as *mut u8).write_volatile(val as _); },
-        AccessWidth::Word => unsafe { (addr as *mut u16).write_volatile(val as _); },
-        AccessWidth::Dword => unsafe { (addr as *mut u32).write_volatile(val as _); },
-        AccessWidth::Qword => unsafe { (addr as *mut u64).write_volatile(val as _); },
+        AccessWidth::Byte => unsafe {
+            (addr as *mut u8).write_volatile(val as _);
+        },
+        AccessWidth::Word => unsafe {
+            (addr as *mut u16).write_volatile(val as _);
+        },
+        AccessWidth::Dword => unsafe {
+            (addr as *mut u32).write_volatile(val as _);
+        },
+        AccessWidth::Qword => unsafe {
+            (addr as *mut u64).write_volatile(val as _);
+        },
     }
 
     Ok(())

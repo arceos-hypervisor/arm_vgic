@@ -11,9 +11,10 @@ use spin::{Mutex, Once};
 
 use crate::{
     registers_v3::{
-        GITS_BASER, GITS_CBASER, GITS_COLLECTION_BASER, GITS_CREADR, GITS_CTRL, GITS_CT_BASER, GITS_CWRITER, GITS_DT_BASER, GITS_TYPER
+        GITS_BASER, GITS_CBASER, GITS_COLLECTION_BASER, GITS_CREADR, GITS_CTRL, GITS_CT_BASER,
+        GITS_CWRITER, GITS_DT_BASER, GITS_TYPER,
     },
-    utils::{perform_mmio_read, perform_mmio_write, enable_one_lpi},
+    utils::{enable_one_lpi, perform_mmio_read, perform_mmio_write},
 };
 
 #[derive(Default)]
@@ -68,35 +69,31 @@ impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
         // mmio_perform_access(gits_base, mmio);
         match reg {
             GITS_CTRL => perform_mmio_read(gits_base + reg, width),
-            GITS_CBASER => {
-                Ok(self.regs().cbaser)
-            }
+            GITS_CBASER => Ok(self.regs().cbaser),
             GITS_DT_BASER => {
                 if self.is_root_vm {
                     perform_mmio_read(gits_base + reg, width)
                 } else {
-                    Ok((self.regs().dt_baser) & (1usize.unbounded_shl(width.size() as u32 * 8) - 1))
+                    Ok(
+                        (self.regs().dt_baser)
+                            & (1usize.unbounded_shl(width.size() as u32 * 8) - 1),
+                    )
                 }
             }
             GITS_CT_BASER => {
                 if self.is_root_vm {
                     perform_mmio_read(gits_base + reg, width)
                 } else {
-                    Ok((self.regs().ct_baser) & (1usize.unbounded_shl(width.size() as u32 * 8) - 1))
+                    Ok(
+                        (self.regs().ct_baser)
+                            & (1usize.unbounded_shl(width.size() as u32 * 8) - 1),
+                    )
                 }
             }
-            GITS_CWRITER => {
-                Ok(self.regs().cwriter)
-            }
-            GITS_CREADR => {
-                Ok(self.regs().creadr)
-            }
-            GITS_TYPER => {
-                perform_mmio_read(gits_base + reg, width)
-            }
-            _ => {
-                perform_mmio_read(gits_base + reg, width)
-            }
+            GITS_CWRITER => Ok(self.regs().cwriter),
+            GITS_CREADR => Ok(self.regs().creadr),
+            GITS_TYPER => perform_mmio_read(gits_base + reg, width),
+            _ => perform_mmio_read(gits_base + reg, width),
         }
     }
 
@@ -112,14 +109,12 @@ impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
 
         // mmio_perform_access(gits_base, mmio);
         match reg {
-            GITS_CTRL => {
-                perform_mmio_write(gits_base + reg, width, val)
-            }
+            GITS_CTRL => perform_mmio_write(gits_base + reg, width, val),
             GITS_CBASER => {
                 if self.is_root_vm {
                     perform_mmio_write(gits_base + reg, width, val)?;
                 }
-                
+
                 self.regs_mut().cbaser = val;
                 Ok(())
             }
@@ -148,7 +143,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
                     let creadr = regs.creadr;
 
                     let mut cmdq = get_cmdq(self.host_gits_base).lock();
-                    self.regs_mut().creadr = cmdq.insert_cmd( cbaser, creadr, val);
+                    self.regs_mut().creadr = cmdq.insert_cmd(cbaser, creadr, val);
                 }
 
                 Ok(())
@@ -156,16 +151,11 @@ impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
             GITS_CREADR => {
                 panic!("GITS_CREADR should not be written by guest!");
             }
-            GITS_TYPER => {
-                perform_mmio_write(gits_base + reg, width, val)
-            }
-            _ => {
-                perform_mmio_write(gits_base + reg, width, val)
-            }
+            GITS_TYPER => perform_mmio_write(gits_base + reg, width, val),
+            _ => perform_mmio_write(gits_base + reg, width, val),
         }
     }
 }
-
 
 pub struct Cmdq {
     phy_addr: PhysAddr,
@@ -302,7 +292,7 @@ impl Cmdq {
         for _cmd_id in 0..cmd_num {
             let vm_cmdq_ptr = phys_to_virt(vm_cmdq_addr).as_mut_ptr_of::<[u64; QWORD_PER_CMD]>();
             let mut real_cmdq_ptr = phys_to_virt(real_cmdq_addr).as_mut_ptr_of::<u64>();
-            
+
             unsafe {
                 let v = ptr::read_volatile(vm_cmdq_ptr);
                 self.analyze_cmd(v.clone());
@@ -315,7 +305,8 @@ impl Cmdq {
             }
             vm_cmdq_addr += BYTES_PER_CMD;
             vm_cmdq_addr = (ring_ptr_update(vm_cmdq_addr.as_usize() - vm_addr) + vm_addr).into();
-            real_cmdq_addr = (ring_ptr_update(real_cmdq_addr - self.phy_addr) + self.phy_addr.as_usize()).into();
+            real_cmdq_addr =
+                (ring_ptr_update(real_cmdq_addr - self.phy_addr) + self.phy_addr.as_usize()).into();
         }
 
         self.writer += cmd_size;
@@ -348,9 +339,7 @@ static CMDQ: Once<Mutex<Cmdq>> = Once::new();
 
 fn get_cmdq(host_gits_base: HostPhysAddr) -> &'static Mutex<Cmdq> {
     if !CMDQ.is_completed() {
-        CMDQ.call_once(|| {
-            Mutex::new(Cmdq::new(host_gits_base))
-        });
+        CMDQ.call_once(|| Mutex::new(Cmdq::new(host_gits_base)));
     }
 
     CMDQ.get().unwrap()

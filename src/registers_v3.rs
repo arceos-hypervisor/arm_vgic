@@ -71,8 +71,6 @@ pub const GITS_CT_BASER: usize = GITS_BASER + 0x8; // its table 1 used as comman
 pub const GITS_COLLECTION_BASER: usize = GITS_BASER + 0x8;
 pub const GITS_TRANSLATER: usize = 0x10000 + 0x0040; // to signal an interrupt, written by devices
 
-
-
 pub const GICR_CTLR: usize = 0x0000;
 pub const GICR_IIDR: usize = 0x0004;
 pub const GICR_TYPER: usize = 0x0008;
@@ -104,6 +102,5 @@ register_range!(GICR_ICFGR, GICR_ICFGR_RANGE, 2, 4);
 
 pub const GICR_PROPBASER: usize = 0x0070;
 pub const GICR_PENDBASER: usize = 0x0078;
-
 
 pub const MAINTENACE_INTERRUPT: u64 = 25;
