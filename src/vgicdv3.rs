@@ -19,7 +19,7 @@ pub const DEFAULT_GICD_SIZE: usize = 0x10000; // 64K
 /// Virtual Generic Interrupt Controller (VGIC) Distributor (D) implementation.
 ///
 /// For GIC version 3.
-struct VGicD {
+pub struct VGicD {
     /// The address of the VGicD in the guest physical address space.
     pub addr: GuestPhysAddr,
     /// The size of the VGicD in bytes.

@@ -70,3 +70,40 @@ pub const GITS_DT_BASER: usize = GITS_BASER; // its table 0 used as device table
 pub const GITS_CT_BASER: usize = GITS_BASER + 0x8; // its table 1 used as command table
 pub const GITS_COLLECTION_BASER: usize = GITS_BASER + 0x8;
 pub const GITS_TRANSLATER: usize = 0x10000 + 0x0040; // to signal an interrupt, written by devices
+
+
+
+pub const GICR_CTLR: usize = 0x0000;
+pub const GICR_IIDR: usize = 0x0004;
+pub const GICR_TYPER: usize = 0x0008;
+pub const GICR_STATUSR: usize = 0x0010;
+pub const GICR_WAKER: usize = 0x0014;
+pub const GICR_SETLPIR: usize = 0x0040;
+pub const GICR_CLRLPIR: usize = 0x0048;
+pub const GICR_INVLPIR: usize = 0x00a0;
+pub const GICR_INVALLR: usize = 0x00b0;
+pub const GICR_SYNCR: usize = 0x00c0;
+pub const GICR_PIDR2: usize = 0xffe8;
+pub const GICR_IMPL_DEF_IDENT_REGS_START: usize = 0xffd0;
+pub const GICR_IMPL_DEF_IDENT_REGS_END: usize = 0xfffc;
+pub const GICR_SGI_BASE: usize = 0x10000;
+
+pub const GICR_IGROUPR: usize = GICR_SGI_BASE + GICD_IGROUPR;
+pub const GICR_ISENABLER: usize = GICR_SGI_BASE + GICD_ISENABLER;
+pub const GICR_ICENABLER: usize = GICR_SGI_BASE + GICD_ICENABLER;
+pub const GICR_ISPENDR: usize = GICR_SGI_BASE + GICD_ISPENDR;
+pub const GICR_ICPENDR: usize = GICR_SGI_BASE + GICD_ICPENDR;
+pub const GICR_ISACTIVER: usize = GICR_SGI_BASE + GICD_ISACTIVER;
+pub const GICR_ICACTIVER: usize = GICR_SGI_BASE + GICD_ICACTIVER;
+pub const GICR_IPRIORITYR: usize = GICR_SGI_BASE + GICD_IPRIORITYR;
+pub const GICR_ICFGR: usize = GICR_SGI_BASE + GICD_ICFGR;
+pub const GICR_TYPER_LAST: usize = 1 << 4;
+
+register_range!(GICR_IPRIORITYR, GICR_IPRIORITYR_RANGE, 8, 4);
+register_range!(GICR_ICFGR, GICR_ICFGR_RANGE, 2, 4);
+
+pub const GICR_PROPBASER: usize = 0x0070;
+pub const GICR_PENDBASER: usize = 0x0078;
+
+
+pub const MAINTENACE_INTERRUPT: u64 = 25;

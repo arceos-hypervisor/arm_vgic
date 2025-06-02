@@ -16,3 +16,4 @@ mod registers_v3;
 mod utils;
 mod vgicd;
 mod vgicdv3;
+mod vgicrv3;

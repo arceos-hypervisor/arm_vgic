@@ -13,7 +13,7 @@ use crate::{
     registers_v3::{
         GITS_BASER, GITS_CBASER, GITS_COLLECTION_BASER, GITS_CREADR, GITS_CTRL, GITS_CT_BASER, GITS_CWRITER, GITS_DT_BASER, GITS_TYPER
     },
-    utils::{perform_mmio_read, perform_mmio_write},
+    utils::{perform_mmio_read, perform_mmio_write, enable_one_lpi},
 };
 
 #[derive(Default)]
@@ -362,8 +362,4 @@ fn ring_ptr_update(val: usize) -> usize {
     } else {
         val
     }
-}
-
-pub fn enable_one_lpi(lpi: usize) {
-    todo!("enable one lpi: {lpi}");
 }
