@@ -4,6 +4,10 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+vgicv3 = []
+
 [dependencies]
 axdevice_base = { git = "https://github.com/arceos-hypervisor/axdevice_crates.git", branch = "inject_interrupt" }
 axaddrspace = { git = "https://github.com/arceos-hypervisor/axaddrspace.git" }

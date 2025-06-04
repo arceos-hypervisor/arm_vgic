@@ -14,7 +14,7 @@ use crate::{
         GITS_BASER, GITS_CBASER, GITS_COLLECTION_BASER, GITS_CREADR, GITS_CTRL, GITS_CT_BASER,
         GITS_CWRITER, GITS_DT_BASER, GITS_TYPER,
     },
-    utils::{enable_one_lpi, perform_mmio_read, perform_mmio_write},
+    utils_v3::{enable_one_lpi, perform_mmio_read, perform_mmio_write},
 };
 
 #[derive(Default)]

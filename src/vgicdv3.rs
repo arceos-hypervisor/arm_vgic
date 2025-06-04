@@ -11,7 +11,7 @@ use crate::{
         GICD_ISACTIVER_RANGE, GICD_ISENABLER_RANGE, GICD_ISPENDR_RANGE, GICD_ITARGETSR,
         GICD_ITARGETSR_RANGE, GICD_TYPER, GICD_TYPER2, MAX_IRQ_V3,
     },
-    utils::{perform_mmio_read, perform_mmio_write},
+    utils_v3::{perform_mmio_read, perform_mmio_write},
 };
 
 pub const DEFAULT_GICD_SIZE: usize = 0x10000; // 64K

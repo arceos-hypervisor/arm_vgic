@@ -16,7 +16,7 @@ use crate::{
         GICR_PROPBASER, GICR_SETLPIR, GICR_SGI_BASE, GICR_STATUSR, GICR_SYNCR, GICR_TYPER,
         GICR_TYPER_LAST, GICR_WAKER, MAINTENACE_INTERRUPT,
     },
-    utils::{perform_mmio_read, perform_mmio_write},
+    utils_v3::{perform_mmio_read, perform_mmio_write},
 };
 
 pub struct VGicRRegs {
