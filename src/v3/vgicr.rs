@@ -19,6 +19,8 @@ use super::{
     utils::{perform_mmio_read, perform_mmio_write},
 };
 
+pub const DEFAULT_SIZE_PER_GICR: usize = 0x20000; // 128K: 64K for SGI/PPI, then 64K for LPI
+
 pub struct VGicRRegs {
     pub propbaser: usize,
 }
@@ -42,6 +44,19 @@ impl VGicR {
 
     pub fn regs_mut(&self) -> &mut VGicRRegs {
         unsafe { &mut *self.regs.get() }
+    }
+
+    pub fn new(addr: GuestPhysAddr, size: Option<usize>, cpu_id: usize) -> Self {
+        let size = size.unwrap_or(DEFAULT_SIZE_PER_GICR);
+        let host_gicr_base_this_cpu = axvisor_api::arch::get_host_gicr_base() + cpu_id * size;
+
+        Self {
+            addr,
+            size,
+            cpu_id,
+            host_gicr_base_this_cpu,
+            regs: UnsafeCell::new(VGicRRegs { propbaser: 0 }),
+        }
     }
 }
 
@@ -183,8 +198,6 @@ impl Drop for LpiPropTable {
         axvisor_api::memory::dealloc_contiguous_frames(self.frame, self.frame_pages);
     }
 }
-
-pub const DEFAULT_SIZE_PER_GICR: usize = 0x20000; // 128K: 64K for SGI/PPI, then 64K for LPI
 
 impl LpiPropTable {
     fn new(

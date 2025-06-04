@@ -45,6 +45,24 @@ impl Gits {
     fn regs_mut(&self) -> &mut VirtualGitsRegs {
         unsafe { &mut *self.regs.get() }
     }
+
+    pub fn new(
+        addr: GuestPhysAddr,
+        size: Option<usize>,
+        host_gits_base: HostPhysAddr,
+        is_root_vm: bool,
+    ) -> Self {
+        let size = size.unwrap_or(0x1000); // 4K
+        let regs = UnsafeCell::new(VirtualGitsRegs::default());
+
+        Self {
+            addr,
+            size,
+            host_gits_base,
+            is_root_vm,
+            regs,
+        }
+    }
 }
 
 impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
