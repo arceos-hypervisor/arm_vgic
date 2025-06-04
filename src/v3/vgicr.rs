@@ -7,8 +7,8 @@ use log::trace;
 use memory_addr::PhysAddr;
 use spin::{Mutex, Once};
 
-use crate::{
-    registers_v3::{
+use super::{
+    registers::{
         GICD_TYPER, GICR_CLRLPIR, GICR_CTLR, GICR_ICACTIVER, GICR_ICENABLER, GICR_ICFGR,
         GICR_ICFGR_RANGE, GICR_ICPENDR, GICR_IIDR, GICR_IMPL_DEF_IDENT_REGS_END,
         GICR_IMPL_DEF_IDENT_REGS_START, GICR_INVALLR, GICR_INVLPIR, GICR_IPRIORITYR,
@@ -16,7 +16,7 @@ use crate::{
         GICR_PROPBASER, GICR_SETLPIR, GICR_SGI_BASE, GICR_STATUSR, GICR_SYNCR, GICR_TYPER,
         GICR_TYPER_LAST, GICR_WAKER, MAINTENACE_INTERRUPT,
     },
-    utils_v3::{perform_mmio_read, perform_mmio_write},
+    utils::{perform_mmio_read, perform_mmio_write},
 };
 
 pub struct VGicRRegs {

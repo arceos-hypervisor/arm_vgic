@@ -3,15 +3,15 @@ use axdevice_base::{BaseDeviceOps, EmuDeviceType};
 use axerrno::AxResult;
 use bitmaps::Bitmap;
 
-use crate::{
-    registers_v3::{
+use super::{
+    registers::{
         GICDV3_CIDR0_RANGE, GICDV3_PIDR0_RANGE, GICDV3_PIDR4_RANGE, GICD_CTLR,
         GICD_ICACTIVER_RANGE, GICD_ICENABLER_RANGE, GICD_ICFGR_RANGE, GICD_ICPENDR_RANGE,
         GICD_IGROUPR_RANGE, GICD_IIDR, GICD_IPRIORITYR_RANGE, GICD_IROUTER, GICD_IROUTER_RANGE,
         GICD_ISACTIVER_RANGE, GICD_ISENABLER_RANGE, GICD_ISPENDR_RANGE, GICD_ITARGETSR,
         GICD_ITARGETSR_RANGE, GICD_TYPER, GICD_TYPER2, MAX_IRQ_V3,
     },
-    utils_v3::{perform_mmio_read, perform_mmio_write},
+    utils::{perform_mmio_read, perform_mmio_write},
 };
 
 pub const DEFAULT_GICD_SIZE: usize = 0x10000; // 64K
@@ -32,6 +32,19 @@ pub struct VGicD {
     ///
     /// TODO: move host gicd access to a separate crate, maybe arm_gic_driver.
     pub host_gicd_addr: HostPhysAddr,
+}
+
+impl VGicD {
+    pub fn new(addr: GuestPhysAddr, size: Option<usize>) -> Self {
+        let size = size.unwrap_or(DEFAULT_GICD_SIZE);
+
+        Self {
+            addr,
+            size,
+            assigned_irqs: Bitmap::new(),
+            host_gicd_addr: axvisor_api::arch::get_host_gicd_base(),
+        }
+    }
 }
 
 impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {

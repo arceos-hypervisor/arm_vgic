@@ -37,4 +37,4 @@ pub(crate) fn perform_mmio_write(
     Ok(())
 }
 
-pub use crate::vgicrv3::enable_one_lpi;
+pub use super::vgicr::enable_one_lpi;
