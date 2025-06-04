@@ -2,18 +2,21 @@ use core::{cell::UnsafeCell, ptr};
 
 use axaddrspace::{GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr};
 use axdevice_base::BaseDeviceOps;
+use axvisor_api::memory::phys_to_virt;
 use log::trace;
+use memory_addr::PhysAddr;
 use spin::{Mutex, Once};
 
 use crate::{
     registers_v3::{
-        GICR_CLRLPIR, GICR_CTLR, GICR_ICACTIVER, GICR_ICENABLER, GICR_ICFGR, GICR_ICFGR_RANGE,
-        GICR_ICPENDR, GICR_IIDR, GICR_IMPL_DEF_IDENT_REGS_END, GICR_IMPL_DEF_IDENT_REGS_START,
-        GICR_INVALLR, GICR_INVLPIR, GICR_IPRIORITYR, GICR_IPRIORITYR_RANGE, GICR_ISACTIVER,
-        GICR_ISENABLER, GICR_ISPENDR, GICR_PENDBASER, GICR_PROPBASER, GICR_SETLPIR, GICR_SGI_BASE,
-        GICR_STATUSR, GICR_SYNCR, GICR_TYPER, GICR_TYPER_LAST, GICR_WAKER, MAINTENACE_INTERRUPT,
+        GICD_TYPER, GICR_CLRLPIR, GICR_CTLR, GICR_ICACTIVER, GICR_ICENABLER, GICR_ICFGR,
+        GICR_ICFGR_RANGE, GICR_ICPENDR, GICR_IIDR, GICR_IMPL_DEF_IDENT_REGS_END,
+        GICR_IMPL_DEF_IDENT_REGS_START, GICR_INVALLR, GICR_INVLPIR, GICR_IPRIORITYR,
+        GICR_IPRIORITYR_RANGE, GICR_ISACTIVER, GICR_ISENABLER, GICR_ISPENDR, GICR_PENDBASER,
+        GICR_PROPBASER, GICR_SETLPIR, GICR_SGI_BASE, GICR_STATUSR, GICR_SYNCR, GICR_TYPER,
+        GICR_TYPER_LAST, GICR_WAKER, MAINTENACE_INTERRUPT,
     },
-    utils::{enable_one_lpi, perform_mmio_read, perform_mmio_write},
+    utils::{perform_mmio_read, perform_mmio_write},
 };
 
 pub struct VGicRRegs {
@@ -27,7 +30,8 @@ pub struct VGicR {
     pub size: usize,
 
     pub cpu_id: usize,
-    pub host_gicr_base: HostPhysAddr,
+    pub host_gicr_base_this_cpu: HostPhysAddr,
+
     pub regs: UnsafeCell<VGicRRegs>,
 }
 
@@ -55,7 +59,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
         addr: <GuestPhysAddrRange as axaddrspace::device::DeviceAddrRange>::Addr,
         width: axaddrspace::device::AccessWidth,
     ) -> axerrno::AxResult<usize> {
-        let gicr_base = self.host_gicr_base;
+        let gicr_base = self.host_gicr_base_this_cpu;
         let reg = addr - self.addr;
         match reg {
             GICR_CTLR => {
@@ -116,7 +120,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
         width: axaddrspace::device::AccessWidth,
         value: usize,
     ) -> axerrno::AxResult<()> {
-        let gicr_base = self.host_gicr_base;
+        let gicr_base = self.host_gicr_base_this_cpu;
         let reg = addr - self.addr;
         match reg {
             GICR_CTLR => {
@@ -167,50 +171,86 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
     }
 }
 
-// Following to be refactored into this repo
-
+// todo: move the lpi prop table to arm-gic-driver, and find a good interface to use it.
 pub struct LpiPropTable {
-    phy_addr: usize,
-    frame: Frame,
+    frame: PhysAddr,
+    frame_pages: usize,
 }
 
+impl Drop for LpiPropTable {
+    fn drop(&mut self) {
+        trace!("LpiPropTable dropped, frame: {:?}", self.frame);
+        axvisor_api::memory::dealloc_contiguous_frames(self.frame, self.frame_pages);
+    }
+}
+
+pub const DEFAULT_SIZE_PER_GICR: usize = 0x20000; // 128K: 64K for SGI/PPI, then 64K for LPI
+
 impl LpiPropTable {
-    fn new() -> Self {
-        let gicd_typer =
-            unsafe { ptr::read_volatile((host_gicd_base() + GICD_TYPER) as *const u32) };
-        let id_bits = (gicd_typer >> 19) & 0x1f;
-        let page_num: usize = ((1 << (id_bits + 1)) - 8192) / PAGE_SIZE;
-        let f = Frame::new_contiguous(page_num, 0).unwrap();
-        let propreg = f.start_paddr() | 0x78f;
-        for id in 0..unsafe { consts::NCPU } {
-            let propbaser = host_gicr_base(id) + GICR_PROPBASER;
+    fn new(
+        host_gicd_typer: u32,
+        host_gicr_base: HostPhysAddr,
+        size_per_gicr: Option<usize>,
+        cpu_num: usize,
+    ) -> Self {
+        let size_per_gicr = size_per_gicr.unwrap_or(DEFAULT_SIZE_PER_GICR);
+        let id_bits = (host_gicd_typer >> 19) & 0x1f;
+        let page_num: usize = ((1 << (id_bits + 1)) - 8192) / memory_addr::PAGE_SIZE_4K;
+        let f = axvisor_api::memory::alloc_contiguous_frames(page_num, 0)
+            .expect("Failed to allocate contiguous frames for LPI prop table");
+        let propreg = f.as_usize() | 0x78f;
+        for id in 0..cpu_num {
+            let propbaser = host_gicr_base + id * size_per_gicr + GICR_PROPBASER;
+            let propbaser = phys_to_virt(propbaser);
             unsafe {
-                ptr::write_volatile(propbaser as *mut u64, propreg as _);
+                ptr::write_volatile(propbaser.as_mut_ptr_of::<u64>(), propreg as _);
             }
         }
         Self {
-            phy_addr: f.start_paddr(),
             frame: f,
+            frame_pages: page_num,
         }
     }
 
     fn enable_one_lpi(&self, lpi: usize) {
-        let addr = self.phy_addr + lpi;
-        let val: u8 = 0b1;
+        let addr = self.frame + lpi;
+        let val = 0b1;
+
+        let addr = phys_to_virt(addr);
         // no priority
         unsafe {
-            ptr::write_volatile(addr as *mut u8, val as _);
+            ptr::write_volatile(addr.as_mut_ptr_of::<u8>(), val);
         }
     }
 }
 
 pub static LPT: Once<Mutex<LpiPropTable>> = Once::new();
 
-pub fn init_lpi_prop() {
-    LPT.call_once(|| Mutex::new(LpiPropTable::new()));
+pub fn get_lpt(
+    host_gicd_typer: u32,
+    host_gicr_base: HostPhysAddr,
+    size_per_gicr: Option<usize>,
+) -> &'static Mutex<LpiPropTable> {
+    if !LPT.is_completed() {
+        LPT.call_once(|| {
+            Mutex::new(LpiPropTable::new(
+                host_gicd_typer,
+                host_gicr_base,
+                size_per_gicr,
+                axvisor_api::host::get_host_cpu_num(),
+            ))
+        });
+    }
+
+    LPT.get().unwrap()
 }
 
 pub fn enable_one_lpi(lpi: usize) {
-    let lpt = LPT.get().unwrap().lock();
+    let lpt = get_lpt(
+        axvisor_api::arch::read_vgicd_typer(),
+        axvisor_api::arch::get_host_gicr_base(),
+        None, // Use default size
+    );
+    let lpt = lpt.lock();
     lpt.enable_one_lpi(lpi);
 }
