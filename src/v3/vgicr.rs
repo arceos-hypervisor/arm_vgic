@@ -3,18 +3,18 @@ use core::{cell::UnsafeCell, ptr};
 use axaddrspace::{GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr};
 use axdevice_base::BaseDeviceOps;
 use axvisor_api::memory::phys_to_virt;
-use log::trace;
+use log::{debug, trace};
 use memory_addr::PhysAddr;
 use spin::{Mutex, Once};
 
 use super::{
     registers::{
         GICD_TYPER, GICR_CLRLPIR, GICR_CTLR, GICR_ICACTIVER, GICR_ICENABLER, GICR_ICFGR,
-        GICR_ICFGR_RANGE, GICR_ICPENDR, GICR_IIDR, GICR_IMPL_DEF_IDENT_REGS_END,
-        GICR_IMPL_DEF_IDENT_REGS_START, GICR_INVALLR, GICR_INVLPIR, GICR_IPRIORITYR,
-        GICR_IPRIORITYR_RANGE, GICR_ISACTIVER, GICR_ISENABLER, GICR_ISPENDR, GICR_PENDBASER,
-        GICR_PROPBASER, GICR_SETLPIR, GICR_SGI_BASE, GICR_STATUSR, GICR_SYNCR, GICR_TYPER,
-        GICR_TYPER_LAST, GICR_WAKER, MAINTENACE_INTERRUPT,
+        GICR_ICFGR_RANGE, GICR_ICPENDR, GICR_IGROUPR, GICR_IGRPMODR, GICR_IIDR,
+        GICR_IMPL_DEF_IDENT_REGS_END, GICR_IMPL_DEF_IDENT_REGS_START, GICR_INVALLR, GICR_INVLPIR,
+        GICR_IPRIORITYR, GICR_IPRIORITYR_RANGE, GICR_ISACTIVER, GICR_ISENABLER, GICR_ISPENDR,
+        GICR_PENDBASER, GICR_PROPBASER, GICR_SETLPIR, GICR_SGI_BASE, GICR_STATUSR, GICR_SYNCR,
+        GICR_TYPER, GICR_TYPER_LAST, GICR_WAKER, MAINTENACE_INTERRUPT,
     },
     utils::{perform_mmio_read, perform_mmio_write},
 };
@@ -74,6 +74,8 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
         addr: <GuestPhysAddrRange as axaddrspace::device::DeviceAddrRange>::Addr,
         width: axaddrspace::device::AccessWidth,
     ) -> axerrno::AxResult<usize> {
+        debug!("VGicR read reg {:#x} width {:?}", addr - self.addr, width);
+
         let gicr_base = self.host_gicr_base_this_cpu;
         let reg = addr - self.addr;
         match reg {
@@ -112,12 +114,14 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
             GICR_SETLPIR | GICR_CLRLPIR | GICR_INVALLR => perform_mmio_read(gicr_base + reg, width),
             reg if reg == GICR_STATUSR
                 || reg == GICR_WAKER
+                || reg == GICR_IGROUPR
                 || reg == GICR_ISENABLER
                 || reg == GICR_ICENABLER
                 || reg == GICR_ISPENDR
                 || reg == GICR_ICPENDR
                 || reg == GICR_ISACTIVER
                 || reg == GICR_ICACTIVER
+                || reg == GICR_IGRPMODR
                 || GICR_IPRIORITYR_RANGE.contains(&reg)
                 || GICR_ICFGR_RANGE.contains(&reg) =>
             {
@@ -162,12 +166,14 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
             }
             reg if reg == GICR_STATUSR
                 || reg == GICR_WAKER
+                || reg == GICR_IGROUPR
                 || reg == GICR_ISENABLER
                 || reg == GICR_ICENABLER
                 || reg == GICR_ISPENDR
                 || reg == GICR_ICPENDR
                 || reg == GICR_ISACTIVER
                 || reg == GICR_ICACTIVER
+                || reg == GICR_IGRPMODR
                 || GICR_IPRIORITYR_RANGE.contains(&reg)
                 || GICR_ICFGR_RANGE.contains(&reg) =>
             {
