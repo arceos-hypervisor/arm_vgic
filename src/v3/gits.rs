@@ -27,6 +27,8 @@ pub struct VirtualGitsRegs {
     pub cwriter: usize,
 }
 
+pub const DEFAULT_GITS_SIZE: usize = 0x20_000; // 128Ki: two 64-Ki frames
+
 pub struct Gits {
     pub addr: GuestPhysAddr,
     pub size: usize,
