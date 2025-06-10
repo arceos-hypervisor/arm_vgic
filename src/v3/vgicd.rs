@@ -66,7 +66,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
         let gicd_base = self.host_gicd_addr;
         let reg = addr - self.addr;
 
-        debug!("VGicD read reg {:#x} width {:?}", reg, width);
+        debug!("vGICD read reg {:#x} width {:?}", reg, width);
 
         match reg {
             reg if GICD_IROUTER_RANGE.contains(&reg) => {
@@ -136,6 +136,8 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
     ) -> axerrno::AxResult {
         let gicd_base = self.host_gicd_addr;
         let reg = addr - self.addr;
+
+        debug!("vGICD write reg {:#x} width {:?} val {:#x}", reg, width, val);
 
         match reg {
             reg if GICD_IROUTER_RANGE.contains(&reg) => {

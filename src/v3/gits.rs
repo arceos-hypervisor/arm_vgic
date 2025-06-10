@@ -5,7 +5,7 @@ use core::{cell::UnsafeCell, ptr};
 use axaddrspace::{GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr};
 use axdevice_base::BaseDeviceOps;
 use axvisor_api::memory::{phys_to_virt, PhysFrame};
-use log::trace;
+use log::{debug, trace};
 use memory_addr::PhysAddr;
 use spin::{Mutex, Once};
 
@@ -86,6 +86,12 @@ impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
         let reg = addr - self.addr;
         // let reg = mmio.address;
 
+        debug!("vGITS({} @ {:#x}) read reg {:#x} width {:?}", if self.is_root_vm {
+            "root"
+        } else {
+            "non-root"
+        }, self.addr.as_usize(), reg, width);
+
         // mmio_perform_access(gits_base, mmio);
         match reg {
             GITS_CTRL => perform_mmio_read(gits_base + reg, width),
@@ -126,6 +132,10 @@ impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
         let gits_base = self.host_gits_base;
         let reg = addr - self.addr;
         // let reg = mmio.address;
+
+        debug!("vGITS({} @ {:#x}) write reg {:#x} width {:?} value {:#x}",
+            if self.is_root_vm { "root" } else { "non-root" },
+            self.addr.as_usize(), reg, width, val);
 
         // mmio_perform_access(gits_base, mmio);
         match reg {

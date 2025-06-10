@@ -74,10 +74,12 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
         addr: <GuestPhysAddrRange as axaddrspace::device::DeviceAddrRange>::Addr,
         width: axaddrspace::device::AccessWidth,
     ) -> axerrno::AxResult<usize> {
-        debug!("VGicR read reg {:#x} width {:?}", addr - self.addr, width);
-
         let gicr_base = self.host_gicr_base_this_cpu;
         let reg = addr - self.addr;
+
+        debug!("vGICR ({} @ {:#x}) read reg {:#x} width {:?}",
+            self.cpu_id, self.addr, reg, width);
+
         match reg {
             GICR_CTLR => {
                 // TODO: is cross vcpu access allowed?
@@ -141,6 +143,10 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
     ) -> axerrno::AxResult<()> {
         let gicr_base = self.host_gicr_base_this_cpu;
         let reg = addr - self.addr;
+
+        debug!("vGICR ({} @ {:#x}) write reg {:#x} width {:?} value {:#x}",
+            self.cpu_id, self.addr, reg, width, value);
+
         match reg {
             GICR_CTLR => {
                 // TODO: is cross zone access allowed?
