@@ -5,9 +5,11 @@ use core::{cell::UnsafeCell, ptr};
 use axaddrspace::{GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr};
 use axdevice_base::BaseDeviceOps;
 use axvisor_api::memory::{phys_to_virt, PhysFrame};
-use log::{debug, trace};
+use log::{debug, trace, warn};
 use memory_addr::PhysAddr;
 use spin::{Mutex, Once};
+
+use crate::v3::vgicr::get_lpt;
 
 use super::{
     registers::{
@@ -56,6 +58,14 @@ impl Gits {
     ) -> Self {
         let size = size.unwrap_or(DEFAULT_GITS_SIZE); // 4K
         let regs = UnsafeCell::new(VirtualGitsRegs::default());
+
+        // ensure cmdq and lpi prop table is initialized before VMs are up
+        let _ = get_cmdq(host_gits_base); 
+        let _ = get_lpt(
+            axvisor_api::arch::read_vgicd_typer(),
+            axvisor_api::arch::get_host_gicr_base(),
+            None, // Use default size
+        );
 
         Self {
             addr,
@@ -106,7 +116,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
                     )
                 }
             }
-            GITS_CT_BASER => {
+            GITS_CT_BASER => {         
                 if self.is_root_vm {
                     perform_mmio_read(gits_base + reg, width)
                 } else {
@@ -193,6 +203,9 @@ pub struct Cmdq {
     writer: usize,
 
     host_gits_base: HostPhysAddr,
+
+    dt_addr: HostPhysAddr, // device table addr
+    ct_addr: HostPhysAddr, // command table addr
 }
 
 impl Drop for Cmdq {
@@ -209,31 +222,83 @@ impl Cmdq {
     fn new(host_gits_base: HostPhysAddr) -> Self {
         let phy_addr = axvisor_api::memory::alloc_contiguous_frames(16, 0).unwrap();
         trace!("Cmdq alloc 16 frames: {:?}", phy_addr);
-        let r = Self {
+        let mut r = Self {
             phy_addr,
             readr: 0,
             writer: 0,
             host_gits_base,
+            dt_addr: 0.into(),
+            ct_addr: 0.into(),
         };
         r.init_real_cbaser();
         r
     }
 
-    fn init_real_cbaser(&self) {
-        let reg = self.host_gits_base + GITS_CBASER;
-        let writer = self.host_gits_base + GITS_CWRITER;
-        let val = 0xb80000000000040f | self.phy_addr.as_usize();
-        let ctrl = self.host_gits_base + GITS_CTRL;
+    fn init_real_cbaser(&mut self) {
+        let cbaser_addr = self.host_gits_base + GITS_CBASER;
+        let cwriter_addr = self.host_gits_base + GITS_CWRITER;
+        let cbaser_val = 0xb80000000000040f | self.phy_addr.as_usize();
+        let ctlr_addr = self.host_gits_base + GITS_CTRL;
 
-        let reg_ptr = phys_to_virt(reg).as_mut_ptr_of::<u64>();
-        let writer_ptr = phys_to_virt(writer).as_mut_ptr_of::<u64>();
-        let ctrl_ptr = phys_to_virt(ctrl).as_mut_ptr_of::<u64>();
+        let cbaser_ptr = phys_to_virt(cbaser_addr).as_mut_ptr_of::<u64>();
+        let cwriter_ptr = phys_to_virt(cwriter_addr).as_mut_ptr_of::<u64>();
+        let ctlr_ptr = phys_to_virt(ctlr_addr).as_mut_ptr_of::<u64>();
 
         unsafe {
-            let origin_ctrl = ptr::read_volatile(ctrl_ptr);
-            ptr::write_volatile(ctrl_ptr, origin_ctrl | 0xfffffffffffffffeu64); // turn off, vm will turn on this ctrl
-            ptr::write_volatile(reg_ptr, val as u64);
-            ptr::write_volatile(writer_ptr, 0 as u64); // init cwriter
+            let origin_ctrl = ptr::read_volatile(ctlr_ptr);
+            debug!("origin_ctrl: {:#x}", origin_ctrl);
+            ptr::write_volatile(ctlr_ptr, origin_ctrl & 0xfffffffffffffffeu64); // turn off, vm will turn on this ctrl
+            
+            ptr::write_volatile(cbaser_ptr, cbaser_val as u64);
+            ptr::write_volatile(cwriter_ptr, 0 as u64); // init cwriter
+
+            self.init_dummy_dt_ct_baser();
+
+            // wait for the vm to turn it on
+        }
+    }
+
+    fn init_dummy_dt_ct_baser(&mut self) {
+        let dt_baser_addr = self.host_gits_base + GITS_DT_BASER;
+        let ct_baser_addr = self.host_gits_base + GITS_CT_BASER;
+
+        let dt_baser_ptr = phys_to_virt(dt_baser_addr).as_mut_ptr_of::<u64>();
+        let ct_baser_ptr = phys_to_virt(ct_baser_addr).as_mut_ptr_of::<u64>();
+
+        unsafe {
+            let dt_baser = ptr::read_volatile(dt_baser_ptr);
+            let ct_baser = ptr::read_volatile(ct_baser_ptr);
+
+            // alloc 64 KiB (16 * 4-KiB frames) each for dt and ct
+            let dt_addr = axvisor_api::memory::alloc_contiguous_frames(16, 4).unwrap();
+            let ct_addr = axvisor_api::memory::alloc_contiguous_frames(16, 4).unwrap();
+
+            let dt_baser = dt_baser
+                | (dt_addr.as_usize() as u64 & 0x0000_ffff_ffff_f000)
+                | (1 << 63)     // set valid bit
+                | (0 << 62)     // not indirect table
+                | (0b111 << 59) // inner cache: 0b111
+                | (0b01 << 10)  // inner shareable
+                | (0b00 << 8)   // 4-KiB page size
+                | (16 - 1)      // 16 frames, 64 KiB
+                ;
+            let ct_baser = ct_baser
+                | (ct_addr.as_usize() as u64 & 0x0000_ffff_ffff_f000)
+                | (1 << 63)     // set valid bit
+                | (0 << 62)     // not indirect table
+                | (0b111 << 59) // inner cache: 0b111
+                | (0b01 << 10)  // inner shareable
+                | (0b00 << 8)   // 4-KiB page size
+                | (16 - 1);     // 16 frames, 64 KiB
+                ;
+            debug!(
+                "setting dt_baser: {:#x}, ct_baser: {:#x}, dt_addr: {:?}, ct_addr: {:?}",
+                dt_baser, ct_baser, dt_addr, ct_addr
+            );
+            ptr::write_volatile(dt_baser_ptr, dt_baser);
+            ptr::write_volatile(ct_baser_ptr, ct_baser);
+            self.dt_addr = dt_addr;
+            self.ct_addr = ct_addr;
         }
     }
 
@@ -246,7 +311,7 @@ impl Cmdq {
                 let event = value[1] & 0xffffffff;
                 let icid = value[2] & 0xffff;
                 enable_one_lpi((event - 8192) as _);
-                trace!(
+                debug!(
                     "MAPI cmd, for device {:#x}, event = intid = {:#x} -> icid {:#x}",
                     id >> 32,
                     event,
@@ -256,7 +321,7 @@ impl Cmdq {
             0x08 => {
                 let id = value[0] & 0xffffffff00000000;
                 let itt_base = (value[2] & 0x000fffffffffffff) >> 8;
-                trace!(
+                debug!(
                     "MAPD cmd, set ITT: {:#x} to device {:#x}",
                     itt_base,
                     id >> 32
@@ -268,7 +333,7 @@ impl Cmdq {
                 let intid = value[1] >> 32;
                 let icid = value[2] & 0xffff;
                 enable_one_lpi((intid - 8192) as _);
-                trace!(
+                debug!(
                     "MAPTI cmd, for device {:#x}, event {:#x} -> icid {:#x} + intid {:#x}",
                     id >> 32,
                     event,
@@ -279,34 +344,35 @@ impl Cmdq {
             0x09 => {
                 let icid = value[2] & 0xffff;
                 let rd_base = (value[2] >> 16) & 0x7ffffffff;
-                trace!("MAPC cmd, icid {:#x} -> redist {:#x}", icid, rd_base);
+                debug!("MAPC cmd, icid {:#x} -> redist {:#x}", icid, rd_base);
             }
             0x05 => {
-                trace!("SYNC cmd");
+                debug!("SYNC cmd");
             }
             0x04 => {
-                trace!("CLEAR cmd");
+                debug!("CLEAR cmd");
             }
             0x0f => {
-                trace!("DISCARD cmd");
+                debug!("DISCARD cmd");
             }
             0x03 => {
-                trace!("INT cmd");
+                debug!("INT cmd");
             }
             0x0c => {
-                trace!("INV cmd");
+                debug!("INV cmd");
             }
             0x0d => {
-                trace!("INVALL cmd");
+                debug!("INVALL cmd");
             }
             _ => {
-                trace!("other cmd, code: 0x{:x}", code);
+                debug!("other cmd, code: 0x{:x}", code);
             }
         }
     }
 
+    /// WARNING: this function supports only GPA-HPA identical mapping!
     fn insert_cmd(&mut self, vm_cbaser: usize, vm_creadr: usize, vm_writer: usize) -> usize {
-        let vm_addr = vm_cbaser & 0xffffffffff000;
+        let vm_addr = vm_cbaser & 0xf_ffff_ffff_f000;
 
         let origin_vm_readr = vm_creadr;
 
@@ -314,7 +380,9 @@ impl Cmdq {
         let cmd_size = vm_writer - origin_vm_readr;
         let cmd_num = cmd_size / BYTES_PER_CMD;
 
-        trace!("cmd size: {:#x}, cmd num: {:#x}", cmd_size, cmd_num);
+        trace!("vm_cbaser: {:#x}, vm_creadr: {:#x}, vm_writer: {:#x}, vm_addr: {:#x}",
+            vm_cbaser, vm_creadr, vm_writer, vm_addr);
+        debug!("cmd size: {:#x}, cmd num: {:#x}", cmd_size, cmd_num);
 
         let mut vm_cmdq_addr = PhysAddr::from_usize(vm_addr + origin_vm_readr);
         let mut real_cmdq_addr = self.phy_addr + self.readr;
@@ -346,12 +414,13 @@ impl Cmdq {
 
         let cwriter_ptr = phys_to_virt(cwriter_addr).as_mut_ptr_of::<u64>();
         let creadr_ptr = phys_to_virt(creadr_addr).as_mut_ptr_of::<u64>();
+        // let ctlr_ptr = phys_to_virt(self.host_gits_base + GITS_CTRL).as_mut_ptr_of::<u64>();
         unsafe {
             ptr::write_volatile(cwriter_ptr, self.writer as _);
             loop {
                 self.readr = (ptr::read_volatile(creadr_ptr)) as usize; // hw readr
                 if self.readr == self.writer {
-                    trace!(
+                    debug!(
                         "readr={:#x}, writer={:#x}, its cmd end",
                         self.readr,
                         self.writer
