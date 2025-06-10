@@ -86,12 +86,12 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
                 perform_mmio_read(gicr_base + reg, width)
             }
             GICR_TYPER => {
-                let value = perform_mmio_read(gicr_base + reg, width)?;
+                let mut value = perform_mmio_read(gicr_base + reg, width)?;
 
-                // TODO: implement this
-                // if self.is_last_gicr {
-                //     value |= GICR_TYPER_LAST;
-                // }
+                // TODO: set GICR_TYPER_LAST if it is the last redistributor of a VM. 
+                if true {
+                    value |= GICR_TYPER_LAST;
+                }
 
                 Ok(value)
             }
