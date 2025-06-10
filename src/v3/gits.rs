@@ -54,7 +54,7 @@ impl Gits {
         host_gits_base: HostPhysAddr,
         is_root_vm: bool,
     ) -> Self {
-        let size = size.unwrap_or(0x1000); // 4K
+        let size = size.unwrap_or(DEFAULT_GITS_SIZE); // 4K
         let regs = UnsafeCell::new(VirtualGitsRegs::default());
 
         Self {
