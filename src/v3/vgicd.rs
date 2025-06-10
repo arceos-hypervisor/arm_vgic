@@ -47,6 +47,34 @@ impl VGicD {
             host_gicd_addr: axvisor_api::arch::get_host_gicd_base(),
         }
     }
+
+    pub fn assign_irq(&mut self, irq: u32, cpu_phys_id: usize, target_cpu_affinity: (u8, u8, u8, u8)) {
+        debug!("Physically assigning IRQ {} to CPU {} with affinity {:?}",
+            irq, cpu_phys_id, target_cpu_affinity);
+
+        if irq >= MAX_IRQ_V3 as u32 {
+            panic!("IRQ {} is out of range for VGicD", irq);
+        }
+        self.assigned_irqs.set(irq as usize, true);
+
+        // TODO: update host GICD_ITARGETSR and GICD_IROUTER registers
+        let gicd_itargetsr_paddr = self.host_gicd_addr + GICD_ITARGETSR + irq as usize;
+        let gicd_itargetsr_vaddr = phys_to_virt(gicd_itargetsr_paddr);
+        unsafe { core::ptr::write_volatile(gicd_itargetsr_vaddr.as_mut_ptr_of::<u8>(), 1u8 << (cpu_phys_id)); }
+
+        let gicd_irouter_paddr = self.host_gicd_addr + GICD_IROUTER + (irq as usize) * 8;
+        let gicd_irouter_vaddr = phys_to_virt(gicd_irouter_paddr);
+        unsafe {
+            core::ptr::write_volatile(
+                gicd_irouter_vaddr.as_mut_ptr_of::<u64>(),
+                (target_cpu_affinity.0 as u64) << 32
+                    | 1 << 31 // set the routing mode bit
+                    | (target_cpu_affinity.1 as u64) << 16
+                    | (target_cpu_affinity.2 as u64) << 8
+                    | target_cpu_affinity.3 as u64,
+            );
+        }
+    }
 }
 
 impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
