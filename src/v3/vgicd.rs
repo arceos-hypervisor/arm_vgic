@@ -232,7 +232,7 @@ impl VGicD {
         // The first IRQ at the given register offset.
         let first_irq = reg_offset << (3 - bits_per_irq_shift);
         // The mask of a single IRQ in the bit-field register.
-        let single_irq_mask = (1 << bits_per_irq_shift) - 1;
+        let single_irq_mask = (1 << (bits_per_irq_shift + 1)) - 1;
 
         let mut mask = 0;
         for irq in 0..irqs_in_access_width {
