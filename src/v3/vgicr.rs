@@ -202,6 +202,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
 pub struct LpiPropTable {
     frame: PhysAddr,
     frame_pages: usize,
+    host_gicr_base: HostPhysAddr,
 }
 
 impl Drop for LpiPropTable {
@@ -221,12 +222,22 @@ impl LpiPropTable {
         let size_per_gicr = size_per_gicr.unwrap_or(DEFAULT_SIZE_PER_GICR);
         let id_bits = (host_gicd_typer >> 19) & 0x1f;
         let page_num: usize = ((1 << (id_bits + 1)) - 8192) / memory_addr::PAGE_SIZE_4K;
+
+        debug!(
+            "Creating LPI prop table: id_bits: {}, page_num: {}, size_per_gicr: {}",
+            id_bits, page_num, size_per_gicr
+        );
+
         let f = axvisor_api::memory::alloc_contiguous_frames(page_num, 0)
             .expect("Failed to allocate contiguous frames for LPI prop table");
         let propreg = f.as_usize() | 0x78f;
         for id in 0..cpu_num {
             let propbaser = host_gicr_base + id * size_per_gicr + GICR_PROPBASER;
             let propbaser = phys_to_virt(propbaser);
+            debug!(
+                "Setting propbaser for CPU {}: {:#x} -> {:#x}",
+                id, propbaser, propreg
+            );
             unsafe {
                 ptr::write_volatile(propbaser.as_mut_ptr_of::<u64>(), propreg as _);
             }
@@ -234,10 +245,12 @@ impl LpiPropTable {
         Self {
             frame: f,
             frame_pages: page_num,
+            host_gicr_base,
         }
     }
 
     fn enable_one_lpi(&self, lpi: usize) {
+        debug!("Enabling one LPI: {}", lpi);
         let addr = self.frame + lpi;
         let val = 0b1;
 
