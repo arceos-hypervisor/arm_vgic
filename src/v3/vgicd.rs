@@ -1,8 +1,9 @@
 use axaddrspace::{device::AccessWidth, GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr};
 use axdevice_base::{BaseDeviceOps, EmuDeviceType};
 use axerrno::AxResult;
+use axvisor_api::memory::phys_to_virt;
 use bitmaps::Bitmap;
-use log::debug;
+use log::{debug, warn};
 
 use super::{
     registers::{
@@ -108,7 +109,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
                 }
             }
             reg if GICD_ITARGETSR_RANGE.contains(&reg) => {
-                let irq = (reg - GICD_ITARGETSR) as u32 / 4;
+                let irq = (reg - GICD_ITARGETSR) as u32;
 
                 if self.is_irq_assigned(irq) && self.is_irq_spi(irq) {
                     perform_mmio_read(gicd_base + reg, width)
@@ -179,7 +180,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
                 }
             }
             reg if GICD_ITARGETSR_RANGE.contains(&reg) => {
-                let irq = (reg - GICD_ITARGETSR) as u32 / 4;
+                let irq = (reg - GICD_ITARGETSR) as u32; // it was wrong in hVisor
 
                 if self.is_irq_assigned(irq) && self.is_irq_spi(irq) {
                     perform_mmio_write(gicd_base + reg, width, val)
