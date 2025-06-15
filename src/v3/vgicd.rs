@@ -3,7 +3,7 @@ use axdevice_base::{BaseDeviceOps, EmuDeviceType};
 use axerrno::AxResult;
 use axvisor_api::memory::phys_to_virt;
 use bitmaps::Bitmap;
-use log::{debug, warn};
+use log::{debug, warn, trace};
 
 use super::{
     registers::{
@@ -50,7 +50,7 @@ impl VGicD {
     }
 
     pub fn assign_irq(&mut self, irq: u32, cpu_phys_id: usize, target_cpu_affinity: (u8, u8, u8, u8)) {
-        debug!("Physically assigning IRQ {} to CPU {} with affinity {:?}",
+        trace!("Physically assigning IRQ {} to CPU {} with affinity {:?}",
             irq, cpu_phys_id, target_cpu_affinity);
 
         if irq >= MAX_IRQ_V3 as u32 {
@@ -95,7 +95,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
         let gicd_base = self.host_gicd_addr;
         let reg = addr - self.addr;
 
-        debug!("vGICD read reg {:#x} width {:?}", reg, width);
+        trace!("vGICD read reg {:#x} width {:?}", reg, width);
 
         match reg {
             reg if GICD_IROUTER_RANGE.contains(&reg) => {
@@ -166,7 +166,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
         let gicd_base = self.host_gicd_addr;
         let reg = addr - self.addr;
 
-        debug!("vGICD write reg {:#x} width {:?} val {:#x}", reg, width, val);
+        trace!("vGICD write reg {:#x} width {:?} val {:#x}", reg, width, val);
 
         match reg {
             reg if GICD_IROUTER_RANGE.contains(&reg) => {
