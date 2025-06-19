@@ -14,7 +14,6 @@ axaddrspace = { git = "https://github.com/arceos-hypervisor/axaddrspace.git" }
 axvisor_api = { git = "https://github.com/arceos-hypervisor/axvisor_api.git" }
 memory_addr = "0.3"
 axerrno = "0.1.0"
-arm_gicv2 = { git = "https://github.com/arceos-hypervisor/arm_gicv2.git", branch = "debin/2vm_timer" }
 log = "0.4"
 # vcpu_if = { path = "../vcpu_if" }
 # crate_interface = "0.1.3"
