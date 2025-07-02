@@ -3,7 +3,7 @@ use axdevice_base::{BaseDeviceOps, EmuDeviceType};
 use axerrno::AxResult;
 use axvisor_api::memory::phys_to_virt;
 use bitmaps::Bitmap;
-use log::{debug, warn};
+use log::{debug, trace, warn};
 
 use super::{
     registers::{
@@ -107,7 +107,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
         let gicd_base = self.host_gicd_addr;
         let reg = addr - self.addr;
 
-        debug!("vGICD read reg {:#x} width {:?}", reg, width);
+        trace!("vGICD read reg {:#x} width {:?}", reg, width);
 
         match reg {
             reg if GICD_IROUTER_RANGE.contains(&reg) => {
@@ -178,7 +178,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
         let gicd_base = self.host_gicd_addr;
         let reg = addr - self.addr;
 
-        debug!(
+        trace!(
             "vGICD write reg {:#x} width {:?} val {:#x}",
             reg, width, val
         );

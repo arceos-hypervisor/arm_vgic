@@ -1,8 +1,12 @@
 use axaddrspace::{device::AccessWidth, HostPhysAddr};
 use axerrno::AxResult;
+use axvisor_api::memory::phys_to_virt;
 
+/// Perform a memory-mapped I/O (MMIO) read operation on a given host physical address.
+///
+/// If the width is shorter than the size of `usize`, the value will be zero-extended to fit into `usize`.
 pub(crate) fn perform_mmio_read(addr: HostPhysAddr, width: AccessWidth) -> AxResult<usize> {
-    let addr = axvisor_api::memory::phys_to_virt(addr).as_ptr();
+    let addr = phys_to_virt(addr).as_ptr();
 
     return match width {
         AccessWidth::Byte => Ok(unsafe { (addr as *const u8).read_volatile() as _ }),
@@ -12,12 +16,13 @@ pub(crate) fn perform_mmio_read(addr: HostPhysAddr, width: AccessWidth) -> AxRes
     };
 }
 
+/// Perform a memory-mapped I/O (MMIO) write operation on a given host physical address.
 pub(crate) fn perform_mmio_write(
     addr: HostPhysAddr,
     width: AccessWidth,
     val: usize,
 ) -> AxResult<()> {
-    let addr = axvisor_api::memory::phys_to_virt(addr).as_mut_ptr();
+    let addr = phys_to_virt(addr).as_mut_ptr();
 
     match width {
         AccessWidth::Byte => unsafe {
@@ -37,4 +42,5 @@ pub(crate) fn perform_mmio_write(
     Ok(())
 }
 
+#[cfg(target_arch = "aarch64")]
 pub use super::vgicr::enable_one_lpi;

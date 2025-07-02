@@ -3,7 +3,7 @@ use core::{cell::UnsafeCell, ptr};
 use axaddrspace::{GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr};
 use axdevice_base::BaseDeviceOps;
 use axvisor_api::memory::phys_to_virt;
-use log::{debug, trace};
+use log::{debug, error, trace};
 use memory_addr::PhysAddr;
 use spin::{Mutex, Once};
 
@@ -78,7 +78,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
         let gicr_base = self.host_gicr_base_this_cpu;
         let reg = addr - self.addr;
 
-        debug!(
+        trace!(
             "vGICR ({} @ {:#x}) read reg {:#x} width {:?}",
             self.cpu_id, self.addr, reg, width
         );
@@ -147,7 +147,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
         let gicr_base = self.host_gicr_base_this_cpu;
         let reg = addr - self.addr;
 
-        debug!(
+        trace!(
             "vGICR ({} @ {:#x}) write reg {:#x} width {:?} value {:#x}",
             self.cpu_id, self.addr, reg, width, value
         );
@@ -294,6 +294,7 @@ pub fn enable_one_lpi(lpi: usize) {
         axvisor_api::arch::get_host_gicr_base(),
         None, // Use default size
     );
+    error!("Enabling LPI: {}", lpi);
     let lpt = lpt.lock();
     lpt.enable_one_lpi(lpi);
 }
