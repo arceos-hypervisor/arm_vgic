@@ -42,6 +42,7 @@ impl VGicR {
         unsafe { &*self.regs.get() }
     }
 
+    #[allow(clippy::mut_from_ref)]
     pub fn regs_mut(&self) -> &mut VGicRRegs {
         unsafe { &mut *self.regs.get() }
     }

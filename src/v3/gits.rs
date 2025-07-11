@@ -46,6 +46,7 @@ impl Gits {
         unsafe { &*self.regs.get() }
     }
 
+    #[allow(clippy::mut_from_ref)]
     fn regs_mut(&self) -> &mut VirtualGitsRegs {
         unsafe { &mut *self.regs.get() }
     }
