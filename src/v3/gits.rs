@@ -296,7 +296,7 @@ impl Cmdq {
                 | (0b111 << 59) // inner cache: 0b111
                 | (0b01 << 10)  // inner shareable
                 | (0b00 << 8)   // 4-KiB page size
-                | (16 - 1);            // 16 frames, 64 KiB
+                | (16 - 1); // 16 frames, 64 KiB
             debug!(
                 "setting dt_baser: {:#x}, ct_baser: {:#x}, dt_addr: {:?}, ct_addr: {:?}",
                 dt_baser, ct_baser, dt_addr, ct_addr
