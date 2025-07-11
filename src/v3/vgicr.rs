@@ -77,8 +77,10 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
         let gicr_base = self.host_gicr_base_this_cpu;
         let reg = addr - self.addr;
 
-        debug!("vGICR ({} @ {:#x}) read reg {:#x} width {:?}",
-            self.cpu_id, self.addr, reg, width);
+        debug!(
+            "vGICR ({} @ {:#x}) read reg {:#x} width {:?}",
+            self.cpu_id, self.addr, reg, width
+        );
 
         match reg {
             GICR_CTLR => {
@@ -88,7 +90,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
             GICR_TYPER => {
                 let mut value = perform_mmio_read(gicr_base + reg, width)?;
 
-                // TODO: set GICR_TYPER_LAST if it is the last redistributor of a VM. 
+                // TODO: set GICR_TYPER_LAST if it is the last redistributor of a VM.
                 if true {
                     value |= GICR_TYPER_LAST;
                 }
@@ -144,8 +146,10 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
         let gicr_base = self.host_gicr_base_this_cpu;
         let reg = addr - self.addr;
 
-        debug!("vGICR ({} @ {:#x}) write reg {:#x} width {:?} value {:#x}",
-            self.cpu_id, self.addr, reg, width, value);
+        debug!(
+            "vGICR ({} @ {:#x}) write reg {:#x} width {:?} value {:#x}",
+            self.cpu_id, self.addr, reg, width, value
+        );
 
         match reg {
             GICR_CTLR => {

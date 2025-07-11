@@ -60,7 +60,7 @@ impl Gits {
         let regs = UnsafeCell::new(VirtualGitsRegs::default());
 
         // ensure cmdq and lpi prop table is initialized before VMs are up
-        let _ = get_cmdq(host_gits_base); 
+        let _ = get_cmdq(host_gits_base);
         let _ = get_lpt(
             axvisor_api::arch::read_vgicd_typer(),
             axvisor_api::arch::get_host_gicr_base(),
@@ -96,11 +96,13 @@ impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
         let reg = addr - self.addr;
         // let reg = mmio.address;
 
-        debug!("vGITS({} @ {:#x}) read reg {:#x} width {:?}", if self.is_root_vm {
-            "root"
-        } else {
-            "non-root"
-        }, self.addr.as_usize(), reg, width);
+        debug!(
+            "vGITS({} @ {:#x}) read reg {:#x} width {:?}",
+            if self.is_root_vm { "root" } else { "non-root" },
+            self.addr.as_usize(),
+            reg,
+            width
+        );
 
         // mmio_perform_access(gits_base, mmio);
         match reg {
@@ -116,7 +118,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
                     )
                 }
             }
-            GITS_CT_BASER => {         
+            GITS_CT_BASER => {
                 if self.is_root_vm {
                     perform_mmio_read(gits_base + reg, width)
                 } else {
@@ -143,9 +145,14 @@ impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
         let reg = addr - self.addr;
         // let reg = mmio.address;
 
-        debug!("vGITS({} @ {:#x}) write reg {:#x} width {:?} value {:#x}",
+        debug!(
+            "vGITS({} @ {:#x}) write reg {:#x} width {:?} value {:#x}",
             if self.is_root_vm { "root" } else { "non-root" },
-            self.addr.as_usize(), reg, width, val);
+            self.addr.as_usize(),
+            reg,
+            width,
+            val
+        );
 
         // mmio_perform_access(gits_base, mmio);
         match reg {
@@ -248,7 +255,7 @@ impl Cmdq {
             let origin_ctrl = ptr::read_volatile(ctlr_ptr);
             debug!("origin_ctrl: {:#x}", origin_ctrl);
             ptr::write_volatile(ctlr_ptr, origin_ctrl & 0xfffffffffffffffeu64); // turn off, vm will turn on this ctrl
-            
+
             ptr::write_volatile(cbaser_ptr, cbaser_val as u64);
             ptr::write_volatile(cwriter_ptr, 0 as u64); // init cwriter
 
@@ -289,8 +296,7 @@ impl Cmdq {
                 | (0b111 << 59) // inner cache: 0b111
                 | (0b01 << 10)  // inner shareable
                 | (0b00 << 8)   // 4-KiB page size
-                | (16 - 1);     // 16 frames, 64 KiB
-                ;
+                | (16 - 1);            // 16 frames, 64 KiB
             debug!(
                 "setting dt_baser: {:#x}, ct_baser: {:#x}, dt_addr: {:?}, ct_addr: {:?}",
                 dt_baser, ct_baser, dt_addr, ct_addr
@@ -380,8 +386,13 @@ impl Cmdq {
         let cmd_size = vm_writer - origin_vm_readr;
         let cmd_num = cmd_size / BYTES_PER_CMD;
 
-        trace!("vm_cbaser: {:#x}, vm_creadr: {:#x}, vm_writer: {:#x}, vm_addr: {:#x}",
-            vm_cbaser, vm_creadr, vm_writer, vm_addr);
+        trace!(
+            "vm_cbaser: {:#x}, vm_creadr: {:#x}, vm_writer: {:#x}, vm_addr: {:#x}",
+            vm_cbaser,
+            vm_creadr,
+            vm_writer,
+            vm_addr
+        );
         debug!("cmd size: {:#x}, cmd num: {:#x}", cmd_size, cmd_num);
 
         let mut vm_cmdq_addr = PhysAddr::from_usize(vm_addr + origin_vm_readr);
@@ -422,8 +433,7 @@ impl Cmdq {
                 if self.readr == self.writer {
                     debug!(
                         "readr={:#x}, writer={:#x}, its cmd end",
-                        self.readr,
-                        self.writer
+                        self.readr, self.writer
                     );
                     break;
                 }

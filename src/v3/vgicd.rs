@@ -49,9 +49,16 @@ impl VGicD {
         }
     }
 
-    pub fn assign_irq(&mut self, irq: u32, cpu_phys_id: usize, target_cpu_affinity: (u8, u8, u8, u8)) {
-        debug!("Physically assigning IRQ {} to CPU {} with affinity {:?}",
-            irq, cpu_phys_id, target_cpu_affinity);
+    pub fn assign_irq(
+        &mut self,
+        irq: u32,
+        cpu_phys_id: usize,
+        target_cpu_affinity: (u8, u8, u8, u8),
+    ) {
+        debug!(
+            "Physically assigning IRQ {} to CPU {} with affinity {:?}",
+            irq, cpu_phys_id, target_cpu_affinity
+        );
 
         if irq >= MAX_IRQ_V3 as u32 {
             panic!("IRQ {} is out of range for VGicD", irq);
@@ -61,7 +68,12 @@ impl VGicD {
         // TODO: update host GICD_ITARGETSR and GICD_IROUTER registers
         let gicd_itargetsr_paddr = self.host_gicd_addr + GICD_ITARGETSR + irq as usize;
         let gicd_itargetsr_vaddr = phys_to_virt(gicd_itargetsr_paddr);
-        unsafe { core::ptr::write_volatile(gicd_itargetsr_vaddr.as_mut_ptr_of::<u8>(), 1u8 << (cpu_phys_id)); }
+        unsafe {
+            core::ptr::write_volatile(
+                gicd_itargetsr_vaddr.as_mut_ptr_of::<u8>(),
+                1u8 << (cpu_phys_id),
+            );
+        }
 
         let gicd_irouter_paddr = self.host_gicd_addr + GICD_IROUTER + (irq as usize) * 8;
         let gicd_irouter_vaddr = phys_to_virt(gicd_irouter_paddr);
@@ -166,7 +178,10 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
         let gicd_base = self.host_gicd_addr;
         let reg = addr - self.addr;
 
-        debug!("vGICD write reg {:#x} width {:?} val {:#x}", reg, width, val);
+        debug!(
+            "vGICD write reg {:#x} width {:?} val {:#x}",
+            reg, width, val
+        );
 
         match reg {
             reg if GICD_IROUTER_RANGE.contains(&reg) => {
