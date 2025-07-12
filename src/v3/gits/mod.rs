@@ -243,7 +243,12 @@ impl ItsDriver {
         let cmd = ItsCommand::from_raw(raw);
 
         match cmd {
-            Ok(ItsCommand::MAPI { event_id: p_int_id, .. } | ItsCommand::MAPTI { p_int_id, .. }) => {
+            Ok(
+                ItsCommand::MAPI {
+                    event_id: p_int_id, ..
+                }
+                | ItsCommand::MAPTI { p_int_id, .. },
+            ) => {
                 enable_one_lpi(p_int_id as _);
             }
             _ => {}
@@ -410,7 +415,6 @@ impl Gits {
             );
 
             unsafe {
-
                 let regs = &mut *regs.get();
                 regs.dt_baser = cmdq.lock().original_dt_baser as _;
                 regs.ct_baser = cmdq.lock().original_ct_baser as _;
@@ -419,8 +423,12 @@ impl Gits {
 
         let _is_root_vm = is_root_vm;
 
-        error!("vITS created at {:#x}, size {:#x}, host_gits_base {:#x}",
-            addr.as_usize(), size, host_gits_base.as_usize());
+        error!(
+            "vITS created at {:#x}, size {:#x}, host_gits_base {:#x}",
+            addr.as_usize(),
+            size,
+            host_gits_base.as_usize()
+        );
 
         Self {
             addr,
@@ -434,7 +442,7 @@ impl Gits {
 impl BaseDeviceOps<GuestPhysAddrRange> for Gits {
     fn emu_type(&self) -> axdevice_base::EmuDeviceType {
         // todo: determine the correct type
-        axdevice_base::EmuDeviceType::EmuDeviceTGPPT
+        axdevice_base::EmuDeviceType::GPPTITS
     }
 
     fn address_range(&self) -> GuestPhysAddrRange {

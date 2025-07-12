@@ -63,7 +63,7 @@ impl VGicR {
 
 impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
     fn emu_type(&self) -> axdevice_base::EmuDeviceType {
-        axdevice_base::EmuDeviceType::EmuDeviceTInterruptController
+        axdevice_base::EmuDeviceType::GPPTRedistributor
     }
 
     fn address_range(&self) -> GuestPhysAddrRange {
@@ -80,7 +80,10 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
 
         trace!(
             "vGICR ({} @ {:#x}) read reg {:#x} width {:?}",
-            self.cpu_id, self.addr, reg, width
+            self.cpu_id,
+            self.addr,
+            reg,
+            width
         );
 
         match reg {
@@ -149,7 +152,11 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicR {
 
         trace!(
             "vGICR ({} @ {:#x}) write reg {:#x} width {:?} value {:#x}",
-            self.cpu_id, self.addr, reg, width, value
+            self.cpu_id,
+            self.addr,
+            reg,
+            width,
+            value
         );
 
         match reg {

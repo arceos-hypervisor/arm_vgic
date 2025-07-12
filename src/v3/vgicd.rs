@@ -92,7 +92,7 @@ impl VGicD {
 
 impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
     fn emu_type(&self) -> axdevice_base::EmuDeviceType {
-        EmuDeviceType::EmuDeviceTInterruptController
+        EmuDeviceType::GPPTDistributor
     }
 
     fn address_range(&self) -> GuestPhysAddrRange {
@@ -180,7 +180,9 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
 
         trace!(
             "vGICD write reg {:#x} width {:?} val {:#x}",
-            reg, width, val
+            reg,
+            width,
+            val
         );
 
         match reg {
