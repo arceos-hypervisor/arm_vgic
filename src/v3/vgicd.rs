@@ -51,12 +51,7 @@ impl VGicD {
         }
     }
 
-    pub fn assign_irq(
-        &self,
-        irq: u32,
-        cpu_phys_id: usize,
-        target_cpu_affinity: (u8, u8, u8, u8),
-    ) {
+    pub fn assign_irq(&self, irq: u32, cpu_phys_id: usize, target_cpu_affinity: (u8, u8, u8, u8)) {
         debug!(
             "Physically assigning IRQ {} to CPU {} with affinity {:?}",
             irq, cpu_phys_id, target_cpu_affinity
@@ -250,9 +245,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
 
 impl VGicD {
     pub fn is_irq_assigned(&self, irq: u32) -> bool {
-        unsafe {
-            (&mut *self.assigned_irqs.get()).get(irq as usize)
-        }
+        unsafe { (&mut *self.assigned_irqs.get()).get(irq as usize) }
     }
 
     pub fn is_irq_sgi(&self, irq: u32) -> bool {
