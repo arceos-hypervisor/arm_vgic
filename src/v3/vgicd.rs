@@ -1,3 +1,5 @@
+use core::cell::UnsafeCell;
+
 use axaddrspace::{device::AccessWidth, GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr};
 use axdevice_base::{BaseDeviceOps, EmuDeviceType};
 use axerrno::AxResult;
@@ -29,7 +31,7 @@ pub struct VGicD {
     pub size: usize,
 
     /// IRQs assigned to this VGicD.
-    pub assigned_irqs: Bitmap<{ MAX_IRQ_V3 }>,
+    pub assigned_irqs: UnsafeCell<Bitmap<{ MAX_IRQ_V3 }>>,
 
     /// The host physical address of the VGicD.
     ///
@@ -44,13 +46,13 @@ impl VGicD {
         Self {
             addr,
             size,
-            assigned_irqs: Bitmap::new(),
+            assigned_irqs: UnsafeCell::new(Bitmap::new()),
             host_gicd_addr: axvisor_api::arch::get_host_gicd_base(),
         }
     }
 
     pub fn assign_irq(
-        &mut self,
+        &self,
         irq: u32,
         cpu_phys_id: usize,
         target_cpu_affinity: (u8, u8, u8, u8),
@@ -63,7 +65,9 @@ impl VGicD {
         if irq >= MAX_IRQ_V3 as u32 {
             panic!("IRQ {} is out of range for VGicD", irq);
         }
-        self.assigned_irqs.set(irq as usize, true);
+        unsafe {
+            (&mut *self.assigned_irqs.get()).set(irq as usize, true);
+        }
 
         // TODO: update host GICD_ITARGETSR and GICD_IROUTER registers
         let gicd_itargetsr_paddr = self.host_gicd_addr + GICD_ITARGETSR + irq as usize;
@@ -246,7 +250,9 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
 
 impl VGicD {
     pub fn is_irq_assigned(&self, irq: u32) -> bool {
-        self.assigned_irqs.get(irq as usize)
+        unsafe {
+            (&mut *self.assigned_irqs.get()).get(irq as usize)
+        }
     }
 
     pub fn is_irq_sgi(&self, irq: u32) -> bool {
