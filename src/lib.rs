@@ -1,5 +1,4 @@
-#![no_std]
-#![feature(unbounded_shifts)]
+#![cfg_attr(not(test), no_std)]
 
 mod devops_impl;
 
@@ -28,7 +27,7 @@ mod api_reexp {
 
 #[cfg(not(target_arch = "aarch64"))]
 mod api_reexp {
-    use memory_addr::{pa, PhysAddr};
+    use memory_addr::{PhysAddr, pa};
 
     pub fn read_vgicd_iidr() -> u32 {
         0

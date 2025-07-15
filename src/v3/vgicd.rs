@@ -1,6 +1,6 @@
 use core::cell::UnsafeCell;
 
-use axaddrspace::{device::AccessWidth, GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr};
+use axaddrspace::{GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr, device::AccessWidth};
 use axdevice_base::{BaseDeviceOps, EmuDeviceType};
 use axerrno::AxResult;
 use axvisor_api::memory::phys_to_virt;
@@ -9,12 +9,11 @@ use log::{debug, warn};
 
 use super::{
     registers::{
-        GICDV3_CIDR0_RANGE, GICDV3_PIDR0_RANGE, GICDV3_PIDR4_RANGE, GICD_CTLR,
-        GICD_ICACTIVER_RANGE, GICD_ICENABLER_RANGE, GICD_ICFGR_RANGE, GICD_ICPENDR_RANGE,
-        GICD_IGROUPR_RANGE, GICD_IGRPMODR, GICD_IGRPMODR_RANGE, GICD_IIDR, GICD_IPRIORITYR_RANGE,
-        GICD_IROUTER, GICD_IROUTER_RANGE, GICD_ISACTIVER_RANGE, GICD_ISENABLER_RANGE,
-        GICD_ISPENDR_RANGE, GICD_ITARGETSR, GICD_ITARGETSR_RANGE, GICD_TYPER, GICD_TYPER2,
-        MAX_IRQ_V3,
+        GICD_CTLR, GICD_ICACTIVER_RANGE, GICD_ICENABLER_RANGE, GICD_ICFGR_RANGE,
+        GICD_ICPENDR_RANGE, GICD_IGROUPR_RANGE, GICD_IGRPMODR, GICD_IGRPMODR_RANGE, GICD_IIDR,
+        GICD_IPRIORITYR_RANGE, GICD_IROUTER, GICD_IROUTER_RANGE, GICD_ISACTIVER_RANGE,
+        GICD_ISENABLER_RANGE, GICD_ISPENDR_RANGE, GICD_ITARGETSR, GICD_ITARGETSR_RANGE, GICD_TYPER,
+        GICD_TYPER2, GICDV3_CIDR0_RANGE, GICDV3_PIDR0_RANGE, GICDV3_PIDR4_RANGE, MAX_IRQ_V3,
     },
     utils::{perform_mmio_read, perform_mmio_write},
 };

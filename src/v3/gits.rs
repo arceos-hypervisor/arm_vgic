@@ -4,7 +4,7 @@ use core::{cell::UnsafeCell, ptr};
 
 use axaddrspace::{GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr};
 use axdevice_base::BaseDeviceOps;
-use axvisor_api::memory::{phys_to_virt, PhysFrame};
+use axvisor_api::memory::{PhysFrame, phys_to_virt};
 use log::{debug, trace, warn};
 use memory_addr::PhysAddr;
 use spin::{Mutex, Once};
@@ -13,7 +13,7 @@ use crate::v3::vgicr::get_lpt;
 
 use super::{
     registers::{
-        GITS_BASER, GITS_CBASER, GITS_COLLECTION_BASER, GITS_CREADR, GITS_CTRL, GITS_CT_BASER,
+        GITS_BASER, GITS_CBASER, GITS_COLLECTION_BASER, GITS_CREADR, GITS_CT_BASER, GITS_CTRL,
         GITS_CWRITER, GITS_DT_BASER, GITS_TYPER,
     },
     utils::{enable_one_lpi, perform_mmio_read, perform_mmio_write},
@@ -389,10 +389,7 @@ impl Cmdq {
 
         trace!(
             "vm_cbaser: {:#x}, vm_creadr: {:#x}, vm_writer: {:#x}, vm_addr: {:#x}",
-            vm_cbaser,
-            vm_creadr,
-            vm_writer,
-            vm_addr
+            vm_cbaser, vm_creadr, vm_writer, vm_addr
         );
         debug!("cmd size: {:#x}, cmd num: {:#x}", cmd_size, cmd_num);
 
@@ -456,9 +453,5 @@ fn get_cmdq(host_gits_base: HostPhysAddr) -> &'static Mutex<Cmdq> {
 }
 
 fn ring_ptr_update(val: usize) -> usize {
-    if val >= 0x10000 {
-        val - 0x10000
-    } else {
-        val
-    }
+    if val >= 0x10000 { val - 0x10000 } else { val }
 }
