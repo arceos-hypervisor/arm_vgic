@@ -49,6 +49,7 @@ impl BaseDeviceOps<SysRegAddrRange> for SysCntpTvalEl0 {
     }
 }
 
+#[derive(Default)]
 pub struct SysCntpTvalEl0 {
     // Fields
 }
