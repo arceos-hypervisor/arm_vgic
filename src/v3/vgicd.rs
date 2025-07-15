@@ -169,9 +169,7 @@ impl BaseDeviceOps<GuestPhysAddrRange> for VGicD {
         let gicd_base = self.host_gicd_addr;
         let reg = addr - self.addr;
 
-        debug!(
-            "vGICD write reg {reg:#x} width {width:?} val {val:#x}"
-        );
+        debug!("vGICD write reg {reg:#x} width {width:?} val {val:#x}");
 
         match reg {
             reg if GICD_IROUTER_RANGE.contains(&reg) => {
