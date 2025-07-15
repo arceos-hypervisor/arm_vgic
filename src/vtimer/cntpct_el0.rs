@@ -1,4 +1,4 @@
-use aarch64_cpu::registers::{Readable, CNTPCT_EL0};
+use aarch64_cpu::registers::{CNTPCT_EL0, Readable};
 use aarch64_sysreg::SystemRegType;
 use axaddrspace::device::{AccessWidth, DeviceAddrRange, SysRegAddr, SysRegAddrRange};
 use axdevice_base::{BaseDeviceOps, EmuDeviceType};
@@ -31,11 +31,12 @@ impl BaseDeviceOps<SysRegAddrRange> for SysCntpctEl0 {
         _width: AccessWidth,
         val: usize,
     ) -> AxResult {
-        info!("Write to emulator register: {:?}, value: {}", addr, val);
+        info!("Write to emulator register: {addr:?}, value: {val}");
         Ok(())
     }
 }
 
+#[derive(Default)]
 pub struct SysCntpctEl0 {
     // Fields
 }
