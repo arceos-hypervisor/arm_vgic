@@ -1,7 +1,10 @@
 [package]
-authors = []
+authors = [
+  "Mingxian Su <aarkegz@gmail.com>",
+  "DeBin Luo <luodeb@outlook.com>",
+]
 categories = ["os", "no-std"]
-edition = "2024"
+edition = "2021"
 keywords = ["hypervisor", "kernel", "vgic"]
 license = "GPL-3.0-or-later OR Apache-2.0 OR MulanPSL-2.0"
 name = "arm_vgic"
