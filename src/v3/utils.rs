@@ -1,4 +1,4 @@
-use axaddrspace::{HostPhysAddr, device::AccessWidth};
+use axaddrspace::{device::AccessWidth, HostPhysAddr};
 use axerrno::AxResult;
 
 pub(crate) fn perform_mmio_read(addr: HostPhysAddr, width: AccessWidth) -> AxResult<usize> {

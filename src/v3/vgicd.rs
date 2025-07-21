@@ -1,6 +1,6 @@
 use core::cell::UnsafeCell;
 
-use axaddrspace::{GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr, device::AccessWidth};
+use axaddrspace::{device::AccessWidth, GuestPhysAddr, GuestPhysAddrRange, HostPhysAddr};
 use axdevice_base::{BaseDeviceOps, EmuDeviceType};
 use axerrno::AxResult;
 use axvisor_api::memory::phys_to_virt;

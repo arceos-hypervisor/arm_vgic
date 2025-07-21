@@ -28,7 +28,7 @@ mod api_reexp {
 #[allow(dead_code)]
 #[cfg(not(target_arch = "aarch64"))]
 mod api_reexp {
-    use memory_addr::{PhysAddr, pa};
+    use memory_addr::{pa, PhysAddr};
 
     pub fn read_vgicd_iidr() -> u32 {
         0

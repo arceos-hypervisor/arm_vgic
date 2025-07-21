@@ -448,5 +448,9 @@ fn get_cmdq(host_gits_base: HostPhysAddr) -> &'static Mutex<Cmdq> {
 }
 
 fn ring_ptr_update(val: usize) -> usize {
-    if val >= 0x10000 { val - 0x10000 } else { val }
+    if val >= 0x10000 {
+        val - 0x10000
+    } else {
+        val
+    }
 }

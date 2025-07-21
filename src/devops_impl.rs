@@ -1,8 +1,8 @@
 use axdevice_base::BaseDeviceOps;
 use axdevice_base::EmuDeviceType;
 
-use axaddrspace::GuestPhysAddrRange;
 use axaddrspace::device::{AccessWidth, DeviceAddrRange};
+use axaddrspace::GuestPhysAddrRange;
 use axerrno::AxResult;
 
 use crate::vgic::Vgic;
