@@ -1,31 +1,43 @@
 use log::debug;
-use vdev_if::MmioRegion;
 pub use vdev_if::VirtPlatformOp;
 pub use vdev_if::{GuestPhysAddr, VirtDeviceOp};
+
+pub use gicd::Gicd;
 
 mod gicd;
 pub mod icc;
 
-pub struct VGic<P: VirtPlatformOp> {
-    gicd: MmioRegion,
-    plat: P,
-}
+pub struct VGic {}
 
-impl<P: VirtPlatformOp> VGic<P> {
-    pub fn new(gicd: GuestPhysAddr, gicr: GuestPhysAddr, plat: P) -> Self {
-        let gicd = plat.alloc_mmio_region(Some(gicd), 0x10000).unwrap();
-        gicd.as_slice_mut().fill(1);
+impl VGic {
+    pub fn new() -> Self {
+        VGic {}
+    }
 
-        Self { plat, gicd }
+    pub fn new_gicd(&mut self, plat: impl VirtPlatformOp, mmio: GuestPhysAddr) -> Gicd {
+        let mmio = plat
+            .alloc_mmio_region(Some(mmio), 0x10000)
+            .expect("Failed to allocate MMIO for GICD");
+        Gicd::new(mmio)
     }
 }
 
-impl<P: VirtPlatformOp> VirtDeviceOp for VGic<P> {
+impl VirtDeviceOp for VGic {
     fn name(&self) -> &str {
         "GICv3 distributor"
     }
 
     fn run(&mut self) {
         debug!("GICv3 run invoked");
+    }
+}
+
+impl VirtDeviceOp for Gicd {
+    fn name(&self) -> &str {
+        "GICv3 distributor"
+    }
+
+    fn run(&mut self) {
+        debug!("GICD run invoked");
     }
 }
