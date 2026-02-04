@@ -3,6 +3,7 @@ use vdev_if::MmioRegion;
 pub use vdev_if::VirtPlatformOp;
 pub use vdev_if::{GuestPhysAddr, VirtDeviceOp};
 
+mod gicd;
 pub mod icc;
 
 pub struct VGic<P: VirtPlatformOp> {
