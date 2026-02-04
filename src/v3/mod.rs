@@ -27,7 +27,7 @@ impl VirtDeviceOp for VGic {
         "GICv3 distributor"
     }
 
-    fn run(&mut self) {
+    fn invoke(&mut self) {
         debug!("GICv3 run invoked");
     }
 }
@@ -37,7 +37,7 @@ impl VirtDeviceOp for Gicd {
         "GICv3 distributor"
     }
 
-    fn run(&mut self) {
+    fn invoke(&mut self) {
         debug!("GICD run invoked");
     }
 }
