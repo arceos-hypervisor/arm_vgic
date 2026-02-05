@@ -1,23 +1,38 @@
+use alloc::vec::Vec;
 use core::ptr::NonNull;
+use mmio_api::Mmio;
 
-use tock_registers::interfaces::Writeable;
-use vdev_if::MmioRegion;
+use aarch64_cpu::registers::Readable;
+use tock_registers::interfaces::{Debuggable, Writeable};
+use vdev_if::{IrqNum, MmioRegion, VirtDeviceOp};
+
+use crate::v3::gicd::reg::{GICD_CTLR, GICD_TYPER};
+use crate::{IrqChip, VGicConfig};
 
 mod reg;
 
 pub struct Gicd {
-    mmio: MmioRegion,
+    vmmio: MmioRegion,
+    irqchip: IrqChip,
     reg: NonNull<reg::GicdBlock>,
+    virt_irqs: Vec<IrqNum>,
+    cfg_shot: Vec<u32>,
 }
 
 unsafe impl Send for Gicd {}
 
 impl Gicd {
-    pub fn new(mmio: MmioRegion) -> Self {
+    pub fn new(mmio: MmioRegion, config: &VGicConfig, virt_irqs: &[IrqNum]) -> Self {
         // 将 MMIO 区域转换为 GicdBlock（64KB 中可以包含多个 GicdBlock 页）
         let reg = NonNull::cast::<reg::GicdBlock>(mmio.access);
-        let mut s = Self { reg, mmio };
-        s.init();
+        let mut s = Self {
+            reg,
+            irqchip: config.irq_chip.clone(),
+            vmmio: mmio,
+            virt_irqs: virt_irqs.to_vec(),
+            cfg_shot: vec![],
+        };
+        s.init(config);
         s
     }
 
@@ -25,9 +40,14 @@ impl Gicd {
         unsafe { self.reg.as_ref() }
     }
 
-    fn init(&mut self) {
+    fn init(&mut self, config: &VGicConfig) {
         // GICv3 标准中断数
         const MAX_IRQS: usize = 1020;
+
+        self.reg().TYPER.write(
+            GICD_TYPER::ITLinesNumber.val((MAX_IRQS / 32) as u32 - 1)
+                + GICD_TYPER::CPUNumber.val(config.cpu_num as _),
+        );
 
         // 计算需要的寄存器数量
         let num_en_regs = (MAX_IRQS + 31) / 32; // ISENABLER/ICENABLER 等
@@ -65,6 +85,7 @@ impl Gicd {
         let edge_triggered: u32 = 0xAAAAAAAA;
         for i in 0..num_cfg_regs.min(64) {
             self.reg().ICFGR[i].set(edge_triggered);
+            self.cfg_shot.push(edge_triggered);
         }
 
         // 6. 配置访问控制（禁止非安全访问）
@@ -97,8 +118,60 @@ impl Gicd {
         self.reg().PIDR2_P12.set(0x3b);
         self.reg().PIDR2_P13.set(0x3b);
         self.reg().PIDR2_P14.set(0x3b);
-        self.reg().PIDR2_P15.set(0x3b);  // 0xFFE8: 客户机访问的地址
+        self.reg().PIDR2_P15.set(0x3b); // 0xFFE8: 客户机访问的地址
+    }
 
-        // TODO: 初始化 IROUTER（需要访问 IROUTER_P6 和 IROUTER_P7）
+    fn check_ctrl(&mut self) {}
+
+    fn setup_cfg(&mut self) {
+        let new_val_ls = self
+            .reg()
+            .ICFGR
+            .iter()
+            .map(|r| r.get())
+            .collect::<Vec<u32>>();
+        // 恢复中断配置寄存器
+        for (i, cfg) in self.cfg_shot.iter_mut().enumerate() {
+            let new_val = new_val_ls[i];
+            if *cfg != new_val {
+                let diff = *cfg ^ new_val;
+                // 每个 ICFGR 寄存器包含 16 个中断的配置（每 2 位）
+                for bit in 0..16 {
+                    let shift = bit * 2;
+                    if ((diff >> shift) & 0b11) == 0 {
+                        continue;
+                    }
+
+                    let irq_num = i * 16 + bit;
+                    let irq: IrqNum = irq_num.into();
+
+                    if !self.virt_irqs.is_empty() && !self.virt_irqs.contains(&irq) {
+                        continue;
+                    }
+
+                    let cfg_bits = (new_val >> shift) & 0b11;
+                    let trig = if cfg_bits == 0b10 {
+                        crate::Trigger::Edge
+                    } else {
+                        crate::Trigger::Level
+                    };
+                    debug!("GICD IRQ({irq_num}) cfg changed, set to {:?}", trig);
+                    self.irqchip.set_cfg(irq, trig);
+                }
+
+                *cfg = new_val;
+            }
+        }
+    }
+}
+
+impl VirtDeviceOp for Gicd {
+    fn name(&self) -> &str {
+        "GICv3 distributor"
+    }
+
+    fn invoke(&mut self) {
+        self.check_ctrl();
+        self.setup_cfg();
     }
 }

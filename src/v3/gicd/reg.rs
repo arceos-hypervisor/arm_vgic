@@ -3,10 +3,10 @@
 //! This module defines all registers for the ARM GICv3 Distributor component
 //! using the tock-registers library. All fields are public as required.
 
+use tock_registers::LocalRegisterCopy;
+use tock_registers::register_bitfields;
 use tock_registers::register_structs;
 use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
-use tock_registers::register_bitfields;
-use tock_registers::LocalRegisterCopy;
 
 // ============================================================================
 // Bit Field Definitions
@@ -420,7 +420,7 @@ pub type GicdCtlrLocal = LocalRegisterCopy<u32, GICD_CTLR::Register>;
 
 /// GICD_TYPER register using MMIO
 /// - Offset: 0x004
-pub type GicdTyperRegister = ReadOnly<u32, GICD_TYPER::Register>;
+pub type GicdTyperRegister = ReadWrite<u32, GICD_TYPER::Register>;
 
 /// Local copy of GICD_TYPER
 pub type GicdTyperLocal = LocalRegisterCopy<u32, GICD_TYPER::Register>;
