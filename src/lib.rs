@@ -33,6 +33,8 @@ impl VGicConfig {
 pub trait IrqChipOp: Send + Sync + 'static {
     fn get_cfg(&self, irq: IrqNum) -> Trigger;
     fn set_cfg(&self, irq: IrqNum, cfg: Trigger);
+    fn set_enable(&self, irq: IrqNum, enable: bool);
+    fn is_enabled(&self, irq: IrqNum) -> bool;
 }
 
 #[derive(Debug, Clone, Copy)]

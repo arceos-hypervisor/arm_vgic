@@ -123,6 +123,11 @@ impl Gicd {
 
     fn check_ctrl(&mut self) {}
 
+
+    fn init_cfg(&mut self){
+
+    }
+
     fn setup_cfg(&mut self) {
         let new_val_ls = self
             .reg()
