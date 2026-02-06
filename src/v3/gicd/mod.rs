@@ -11,6 +11,11 @@ use crate::{IrqChip, VGicConfig};
 
 mod reg;
 
+// GICv3 中断范围常量
+const SPI_START: usize = 32;  // SPI (共享外设中断) 起始号
+const SPI_END: usize = 1020;  // SPI 结束号
+const NUM_CFG_REGS: usize = 64; // ICFGR 配置寄存器数量
+
 pub struct Gicd {
     vmmio: MmioRegion,
     irqchip: IrqChip,
@@ -79,14 +84,7 @@ impl Gicd {
             self.reg().IPRIORITYR[i].set(default_priority);
         }
 
-        // 5. 配置触发方式（所有中断边沿触发）
-        // 每个 ICFGR 寄存器包含 16 个中断的配置（每 2 位）
-        // 0b10 = 边沿触发, 0b00 = 电平触发
-        let edge_triggered: u32 = 0xAAAAAAAA;
-        for i in 0..num_cfg_regs.min(64) {
-            self.reg().ICFGR[i].set(edge_triggered);
-            self.cfg_shot.push(edge_triggered);
-        }
+        self.init_cfg();
 
         // 6. 配置访问控制（禁止非安全访问）
         for i in 0..num_nsacr_regs.min(32) {
@@ -123,9 +121,35 @@ impl Gicd {
 
     fn check_ctrl(&mut self) {}
 
+    fn init_cfg(&mut self) {
+        // 初始化配置快照数组
+        self.cfg_shot = vec![0u32; NUM_CFG_REGS];
 
-    fn init_cfg(&mut self){
+        // 遍历所有 SPI 中断（32-1020）
+        for irq_num in SPI_START..SPI_END {
+            let irq: IrqNum = irq_num.into();
 
+            // 从 irqchip 读取当前配置
+            let trigger = self.irqchip.get_cfg(irq);
+
+            // 计算在 cfg_shot 中的位置
+            let reg_idx = irq_num / 16; // 寄存器索引
+            let bit_pos = irq_num % 16; // 寄存器内位偏移
+            let shift = bit_pos * 2;
+
+            // 转换为 ICFGR 位值并打包
+            let cfg_bits = match trigger {
+                crate::Trigger::Level => 0b00,
+                crate::Trigger::Edge => 0b10,
+            };
+
+            self.cfg_shot[reg_idx] |= cfg_bits << shift;
+        }
+
+        debug!(
+            "GICD: Initialized config snapshot for SPI {}-{}",
+            SPI_START, SPI_END
+        );
     }
 
     fn setup_cfg(&mut self) {
@@ -148,6 +172,16 @@ impl Gicd {
                     }
 
                     let irq_num = i * 16 + bit;
+
+                    // 跳过 CPU 私有中断（SGI 0-15 和 PPI 16-31）
+                    if irq_num < SPI_START {
+                        continue;
+                    }
+                    // 边界检查
+                    if irq_num >= SPI_END {
+                        continue;
+                    }
+
                     let irq: IrqNum = irq_num.into();
 
                     if !self.virt_irqs.is_empty() && !self.virt_irqs.contains(&irq) {
