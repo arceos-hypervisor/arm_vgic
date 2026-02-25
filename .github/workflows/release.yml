@@ -11,7 +11,7 @@ on:
 
 jobs:
   release:
-    uses: arceos-hypervisor/axtest/.github/workflows/release.yml@dev
+    uses: arceos-hypervisor/axci/.github/workflows/release.yml@dev
     with:
       verify_branch: true
       verify_version: true

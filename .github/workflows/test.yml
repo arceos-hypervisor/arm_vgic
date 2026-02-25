@@ -14,4 +14,4 @@ on:
 
 jobs:
   test:
-    uses: arceos-hypervisor/axtest/.github/workflows/test.yml@dev
+    uses: arceos-hypervisor/axci/.github/workflows/test.yml@dev

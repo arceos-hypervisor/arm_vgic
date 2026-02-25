@@ -12,4 +12,4 @@ on:
 
 jobs:
   check:
-    uses: arceos-hypervisor/axtest/.github/workflows/check.yml@dev
+    uses: arceos-hypervisor/axci/.github/workflows/check.yml@dev
