@@ -82,4 +82,3 @@ help:
 	@echo "测试脚本:"
 	@echo "  - 如果 scripts/tests.sh 不存在，会自动从 axci 仓库下载"
 	@echo "  - axci 仓库: https://github.com/arceos-hypervisor/axci"
-
