@@ -137,6 +137,67 @@ for device in timer_devices {
 }
 ```
 
+## Integration Testing
+
+### Test Flow
+
+The integration testing framework follows this process:
+
+1. **Clone Test Repository**: Clone the target project (axvisor or StarryOS)
+2. **Apply Patch**: Apply the current crate as a patch dependency
+3. **Build**: Build the target project with the patch
+4. **Download Images**: Download required VM images for testing
+5. **Run Test**: Execute the test and monitor for success indicators
+6. **Validate**: Detect success patterns (e.g., login prompt, "Hello World") and complete the test
+
+### Test Commands
+
+```bash
+# List all available test cases
+make test list
+
+# Run all tests (sequential execution for 'all' and 'starry')
+make test
+
+# Run specific test category
+make test axvisor-qemu        # All axvisor QEMU tests
+make test axvisor-board       # All axvisor board tests
+make test starry              # All StarryOS tests
+
+# Run specific test case
+make test starry-x86_64
+make test axvisor-qemu-aarch64-arceos
+make test axvisor-board-phytiumpi-arceos
+
+# Run with verbose output
+./scripts/tests.sh -t starry-aarch64 -v
+
+# Dry-run mode (show commands without executing)
+./scripts/tests.sh -t axvisor-qemu --dry-run
+```
+
+### Success Indicators
+
+The test framework automatically detects these success patterns and stops the test:
+
+- `Welcome to` - Generic OS welcome message
+- `All tests passed!` - Test suite completion
+- `Hello World!` - Basic program execution
+- `root@firefly:~#` - Ubuntu login prompt
+- `root@phytium-Ubuntu:~#` - Phytium Ubuntu login prompt
+- `Set hostname to` - System initialization
+- `starry:~#` - StarryOS shell prompt
+- `Last login:` - Login system ready
+
+### Test Configuration
+
+| Category | Targets | Execution Mode |
+|----------|---------|---------------|
+| All | All 11 test cases | Sequential |
+| axvisor-qemu | 3 QEMU tests | Parallel |
+| axvisor-board | 4 board tests | Parallel |
+| starry | 4 architecture tests | Sequential |
+
 ## Testing
 
 ```bash
