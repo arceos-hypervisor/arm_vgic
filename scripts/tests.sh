@@ -579,16 +579,11 @@ run_test_target() {
             log "  从 crates.io 下载 axvisor..."
             if [ "$DRY_RUN" == true ]; then
                 echo "[DRY-RUN] cargo clone axvisor -- $test_dir"
-                echo "[DRY-RUN] cd $test_dir && cargo clone axvisor-build"
             else
                 if ! cargo clone axvisor -- "$test_dir" >> "$log_file" 2>&1; then
                     log_error "  下载 axvisor 失败"
                     echo "failed" > "$status_file"
                     return 1
-                fi
-                log "  下载 axvisor-build 构建工具..."
-                if ! (cd "$test_dir" && cargo clone axvisor-build) >> "$log_file" 2>&1; then
-                    log_warn "  下载 axvisor-build 失败，尝试继续..."
                 fi
             fi
         else
