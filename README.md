@@ -195,7 +195,7 @@ The test framework automatically detects these success patterns and stops the te
 |----------|---------|---------------|
 | All | All 11 test cases | Sequential |
 | axvisor-qemu | 3 QEMU tests | Parallel |
-| axvisor-board | 4 board tests | Parallel |
+| axvisor-board | 4 board tests | Sequential |
 | starry | 4 architecture tests | Sequential |
 
 ## Testing
