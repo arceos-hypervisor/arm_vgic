@@ -34,6 +34,7 @@ OUTPUT_DIR=""
 USE_GIT=false
 GIT_BRANCH=""
 CLEAN_RESULTS=false
+AUTO_MODE=false
 
 # 帮助信息
 show_help() {
@@ -55,6 +56,7 @@ Hypervisor Test Framework - 本地测试脚本
   --from-git                 从 git 仓库拉取代码 (默认从 crates.io 下载)
   --branch BRANCH            指定 git 分支 (仅与 --from-git 一起使用)
   --clean                    清理测试生成的 test-results 目录
+  --auto                     根据 rust-toolchain.toml 中的 targets 自动选择测试
   -h, --help                 显示此帮助
 
 测试目标:
@@ -81,6 +83,7 @@ Hypervisor Test Framework - 本地测试脚本
 
 示例:
   tests.sh                                    # 在当前目录运行所有测试
+  tests.sh --auto                             # 根据 rust-toolchain.toml 自动选择测试
   tests.sh -t axvisor-qemu                    # 仅运行 axvisor QEMU 测试
   tests.sh -t axvisor-board                   # 仅运行 axvisor Board 测试
   tests.sh -t starry-aarch64                  # 仅运行 starry aarch64 测试
@@ -138,6 +141,10 @@ parse_args() {
                 CLEAN_RESULTS=true
                 shift
                 ;;
+            --auto)
+                AUTO_MODE=true
+                shift
+                ;;
             -h|--help)
                 show_help
                 exit 0
@@ -163,6 +170,67 @@ log_debug() {
 }
 
 error() { log_error "$1"; exit 1; }
+
+# 从 rust-toolchain.toml 中提取 targets 并映射到架构
+detect_targets_from_toolchain() {
+    local toolchain_file="$COMPONENT_DIR/rust-toolchain.toml"
+    local detected_archs=()
+
+    if [ ! -f "$toolchain_file" ]; then
+        log_warn "未找到 rust-toolchain.toml，使用所有架构"
+        echo "all"
+        return
+    fi
+
+    # 提取 targets 数组
+    local targets=$(grep -A 20 '^targets' "$toolchain_file" 2>/dev/null | grep -o '"[^"]*"' | tr -d '"' || true)
+
+    if [ -z "$targets" ]; then
+        log_warn "rust-toolchain.toml 中未找到 targets，使用所有架构"
+        echo "all"
+        return
+    fi
+
+    log_debug "从 rust-toolchain.toml 检测到 targets:"
+
+    # 解析每个 target 并映射到架构
+    while IFS= read -r target; do
+        [ -z "$target" ] && continue
+        log_debug "  - $target"
+
+        case "$target" in
+            *aarch64*)
+                if [[ " ${detected_archs[*]} " != *" aarch64 "* ]]; then
+                    detected_archs+=("aarch64")
+                fi
+                ;;
+            *x86_64*)
+                if [[ " ${detected_archs[*]} " != *" x86_64 "* ]]; then
+                    detected_archs+=("x86_64")
+                fi
+                ;;
+            *riscv64*)
+                if [[ " ${detected_archs[*]} " != *" riscv64 "* ]]; then
+                    detected_archs+=("riscv64")
+                fi
+                ;;
+            *loongarch64*)
+                if [[ " ${detected_archs[*]} " != *" loongarch64 "* ]]; then
+                    detected_archs+=("loongarch64")
+                fi
+                ;;
+        esac
+    done <<< "$targets"
+
+    if [ ${#detected_archs[@]} -eq 0 ]; then
+        log_warn "无法从 targets 识别架构，使用所有架构"
+        echo "all"
+        return
+    fi
+
+    log "检测到的架构: ${detected_archs[*]}"
+    echo "${detected_archs[*]}"
+}
 
 # 检查依赖
 check_dependencies() {
@@ -409,12 +477,13 @@ setup_output() {
     log_debug "输出目录: $OUTPUT_DIR"
 }
 
-# 运行命令并监控输出，检测成功标识符
+# 运行命令并监控输出，检测成功/失败标识符
 run_with_success_detection() {
     local cmd="$1"
     local timeout_minutes="$2"
     local log_file="$3"
     local success_patterns=()
+    local error_patterns=()
 
     # 定义成功标识符模式（支持通配符）
     success_patterns+=("Welcome to")
@@ -426,45 +495,77 @@ run_with_success_detection() {
     success_patterns+=("starry:~#")
     success_patterns+=("Last login:")
 
+    # 定义错误标识符模式
+    error_patterns+=("error:")
+    error_patterns+=("error[")
+    error_patterns+=("FAILED")
+    error_patterns+=("panicked")
+    error_patterns+=("segmentation fault")
+    error_patterns+=("core dumped")
+
+    # 创建临时文件来存储状态
+    local status_file=$(mktemp)
+    echo "running" > "$status_file"
+
     # 使用 timeout 运行命令，同时监控输出
     local pid=""
     local fifo=$(mktemp -u)
     mkfifo "$fifo"
 
-    # 启动命令并将输出重定向到管道和日志
+    # 启动命令并将输出重定向到管道
     eval "$cmd" < /dev/null > "$fifo" 2>&1 &
     pid=$!
 
-    # 读取管道并检测成功标识符
-    while IFS= read -r line; do
-        # 输出到日志
-        echo "$line" >> "$log_file"
+    # 在后台读取管道并检测成功/错误标识符
+    (
+        while IFS= read -r line; do
+            # 输出到日志
+            echo "$line" >> "$log_file"
 
-        # 检测是否匹配任何成功标识符
-        for pattern in "${success_patterns[@]}"; do
-            if [[ "$line" == *"$pattern"* ]]; then
-                rm -f "$fifo"
-                kill $pid 2>/dev/null || true
-                wait $pid 2>/dev/null || true
-                return 0
-            fi
-        done
-    done < "$fifo" &
+            # 检测是否匹配任何错误标识符（优先检测错误）
+            for pattern in "${error_patterns[@]}"; do
+                if [[ "$line" == *"$pattern"* ]]; then
+                    echo "error:$pattern" > "$status_file"
+                    kill $pid 2>/dev/null || true
+                    exit 0
+                fi
+            done
 
-    # 设置超时
-    timeout "${timeout_minutes}m" tail --pid=$pid -f /dev/null
+            # 检测是否匹配任何成功标识符
+            for pattern in "${success_patterns[@]}"; do
+                if [[ "$line" == *"$pattern"* ]]; then
+                    echo "success" > "$status_file"
+                    kill $pid 2>/dev/null || true
+                    exit 0
+                fi
+            done
+        done < "$fifo"
+    ) &
+    local monitor_pid=$!
+
+    # 设置超时等待进程完成
+    timeout "${timeout_minutes}m" tail --pid=$pid -f /dev/null 2>/dev/null || true
     local exit_code=$?
 
-    # 清理
-    rm -f "$fifo"
+    # 等待监控进程完成
+    wait $monitor_pid 2>/dev/null || true
 
-    if [ $exit_code -eq 124 ]; then
-        return 124
-    elif [ $exit_code -eq 0 ]; then
-        # 检查是否因为检测到成功标识符而提前退出
+    # 读取状态
+    local status=$(cat "$status_file")
+
+    # 清理
+    rm -f "$fifo" "$status_file"
+
+    # 根据状态返回结果
+    if [[ "$status" == error:* ]]; then
+        local pattern=${status#error:}
+        return 1
+    elif [ "$status" = "success" ]; then
         return 0
+    elif [ $exit_code -eq 124 ]; then
+        return 124
     else
-        return $exit_code
+        return 1
     fi
 }
 
@@ -472,7 +573,41 @@ run_with_success_detection() {
 get_test_targets() {
     local targets=()
 
-    if [ "$TEST_TARGET" == "all" ]; then
+    if [ "$AUTO_MODE" == true ]; then
+        # 自动模式：根据 rust-toolchain.toml 中的 targets 选择测试
+        local archs=$(detect_targets_from_toolchain)
+
+        if [ "$archs" == "all" ]; then
+            # 无法识别架构，运行所有测试
+            local count=$(echo "$CONFIG" | jq '.test_targets | length')
+            for ((i=0; i<count; i++)); do
+                targets+=("$(echo "$CONFIG" | jq -r ".test_targets[$i].name")")
+            done
+        else
+            # 根据检测到的架构选择测试目标
+            local count=$(echo "$CONFIG" | jq '.test_targets | length')
+            for ((i=0; i<count; i++)); do
+                local name=$(echo "$CONFIG" | jq -r ".test_targets[$i].name")
+                local target_arch=$(echo "$CONFIG" | jq -r ".test_targets[$i].arch")
+
+                # 检查目标架构是否在检测到的架构列表中
+                for arch in $archs; do
+                    if [ "$target_arch" == "$arch" ]; then
+                        targets+=("$name")
+                        break
+                    fi
+                done
+            done
+        fi
+
+        if [ ${#targets[@]} -eq 0 ]; then
+            log_warn "未找到匹配的测试目标，运行所有测试"
+            local count=$(echo "$CONFIG" | jq '.test_targets | length')
+            for ((i=0; i<count; i++)); do
+                targets+=("$(echo "$CONFIG" | jq -r ".test_targets[$i].name")")
+            done
+        fi
+    elif [ "$TEST_TARGET" == "all" ]; then
         # 从配置获取所有目标
         local count=$(echo "$CONFIG" | jq '.test_targets | length')
         for ((i=0; i<count; i++)); do
@@ -511,6 +646,59 @@ get_test_targets() {
     fi
 
     echo "${targets[@]}"
+}
+
+# 检查组件是否被目标项目使用（从 Cargo.lock 中检索）
+# 返回 0 表示使用，1 表示未使用
+check_component_used() {
+    local target_name=$1
+    local test_dir=$2
+    
+    # 如果不是 axvisor 或 starry 相关的测试，直接返回使用
+    if [[ "$target_name" != axvisor-* ]] && [[ "$target_name" != starry-* ]]; then
+        return 0
+    fi
+    
+    local cargo_lock="$test_dir/Cargo.lock"
+    
+    # 如果 Cargo.lock 不存在，尝试从 Cargo.toml 检查
+    if [ ! -f "$cargo_lock" ]; then
+        local cargo_toml="$test_dir/Cargo.toml"
+        if [ ! -f "$cargo_toml" ]; then
+            log_warn "  未找到 Cargo.toml 或 Cargo.lock，无法检查依赖关系"
+            return 0
+        fi
+        
+        # 从 Cargo.toml 检查是否有该组件的依赖
+        if grep -q "^$COMPONENT_CRATE\s*=" "$cargo_toml" 2>/dev/null; then
+            log_debug "  在 Cargo.toml 中找到组件: $COMPONENT_CRATE"
+            return 0
+        fi
+        
+        # 检查 workspace members 是否可能包含该组件
+        if grep -q "^$COMPONENT_CRATE\s*=" "$test_dir"/*/Cargo.toml 2>/dev/null; then
+            log_debug "  在 workspace member 中找到组件: $COMPONENT_CRATE"
+            return 0
+        fi
+        
+        return 1
+    fi
+    
+    # 从 Cargo.lock 中检查组件
+    # Cargo.lock 格式：[[package]] name = "crate-name"
+    if grep -A 1 '^\[\[package\]\]' "$cargo_lock" 2>/dev/null | grep -q "name = \"$COMPONENT_CRATE\""; then
+        log_debug "  在 Cargo.lock 中找到组件: $COMPONENT_CRATE"
+        return 0
+    fi
+    
+    # 如果直接没找到，尝试从 Cargo.toml 再确认一下（可能是间接依赖）
+    local cargo_toml="$test_dir/Cargo.toml"
+    if [ -f "$cargo_toml" ] && grep -q "^$COMPONENT_CRATE\s*=" "$cargo_toml" 2>/dev/null; then
+        log_debug "  在 Cargo.toml 中找到组件: $COMPONENT_CRATE"
+        return 0
+    fi
+    
+    return 1
 }
 
 # 检查并关闭占用端口5555的程序
@@ -627,6 +815,15 @@ run_test_target() {
         log "  DRY RUN: 跳过 patch、构建和测试"
         echo "skipped" > "$status_file"
         return 2
+    fi
+    
+    # 检查当前组件是否被目标项目使用（针对 axvisor/starry 测试）
+    if [[ "$target_name" == axvisor-* ]] || [[ "$target_name" == starry-* ]]; then
+        if ! check_component_used "$target_name" "$test_dir"; then
+            log_warn "  跳过测试: 当前组件 '$COMPONENT_CRATE' 未在 $target_name 的依赖中使用"
+            echo "skipped" > "$status_file"
+            return 2
+        fi
     fi
     
     # 应用 patch - 与 CI 逻辑保持一致
@@ -1283,7 +1480,7 @@ main() {
     if [ $result -eq 0 ]; then
         log_success "所有测试通过!"
     elif [ $result -eq 2 ]; then
-        log_warn "部分测试被跳过（需要硬件）"
+        log_warn "部分测试被跳过"
     else
         log_error "部分测试失败"
     fi
