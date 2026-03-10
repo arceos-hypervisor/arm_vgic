@@ -487,14 +487,15 @@ run_with_success_detection() {
 
     # 定义成功标识符模式（支持通配符）
     success_patterns+=("Welcome to")
+    success_patterns+=("test pass!")
     success_patterns+=("All tests passed!")
-    success_patterns+=("Hello World!")
+    success_patterns+=("simple_sleep passed!")
+    success_patterns+=("Hello, world!")
     success_patterns+=("root@firefly:~#")
     success_patterns+=("root@phytium-Ubuntu:~#")
     success_patterns+=("Set hostname to")
     success_patterns+=("starry:~#")
     success_patterns+=("Last login:")
-
     # 定义错误标识符模式
     error_patterns+=("error:")
     error_patterns+=("error[")
