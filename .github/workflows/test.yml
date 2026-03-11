@@ -1,16 +1,17 @@
-name: Test CI
+# Integration Test Workflow
+# References shared workflow from axci
 
-on: [push, pull_request]
+name: Test
+
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - '**'
+  pull_request:
+  workflow_dispatch:
 
 jobs:
-    test:
-        runs-on: ubuntu-latest
-        container: ghcr.io/josen-b/tangram-crates
-
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
-
-              run: |
-                chmod +x scripts/tests.sh
-                ./scripts/tests.sh --auto --sequential
+  test:
+    uses: arceos-hypervisor/axci/.github/workflows/test.yml@dev
