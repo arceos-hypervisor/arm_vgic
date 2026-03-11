@@ -29,7 +29,7 @@ TEST_TARGET="all"
 VERBOSE=false
 CLEANUP=true
 DRY_RUN=false
-PARALLEL=true
+PARALLEL=false
 OUTPUT_DIR=""
 USE_GIT=false
 GIT_BRANCH=""
@@ -55,7 +55,7 @@ Hypervisor Test Framework - 本地测试脚本
   -v, --verbose              详细输出
   --no-cleanup               不清理临时文件
   --dry-run                  仅显示将要执行的命令
-  --sequential               顺序执行测试 (不并行)
+  --parallel                 并行执行测试 (默认顺序执行)
   --from-git                 从 git 仓库拉取代码 (默认从 crates.io 下载)
   --branch BRANCH            指定 git 分支 (仅与 --from-git 一起使用)
   --clean                    清理测试生成的 test-results 目录
@@ -131,8 +131,8 @@ parse_args() {
                 DRY_RUN=true
                 shift
                 ;;
-            --sequential)
-                PARALLEL=false
+            --parallel)
+                PARALLEL=true
                 shift
                 ;;
             --from-git)
@@ -600,6 +600,7 @@ run_with_success_detection() {
     success_patterns+=("Set hostname to")
     success_patterns+=("starry:~#")
     success_patterns+=("Last login:")
+    success_patterns+=("Booting kernel with command")
     # 定义错误标识符模式
     error_patterns+=("error:")
     error_patterns+=("error[")
@@ -610,10 +611,13 @@ run_with_success_detection() {
     
     # 特殊模式：等待开发板上电
     local power_on_done=false
+    local power_on_time=""
 
     # 创建临时文件来存储状态
     local status_file=$(mktemp)
+    local power_flag_file=$(mktemp)
     echo "running" > "$status_file"
+    echo "false" > "$power_flag_file"
 
     # 使用 timeout 运行命令，同时监控输出
     local pid=""
@@ -634,6 +638,8 @@ run_with_success_detection() {
             if [[ "$line" == *"Waiting for board on power or reset"* ]]; then
                 if [ "$power_on_done" == false ] && [ -n "$board_name" ]; then
                     power_on_done=true
+                    echo "true" > "$power_flag_file"
+                    echo "$(date +%s)" >> "$power_flag_file"
                     # 提示用户上电
                     log "  准备就绪，请给开发板上电…"
                     # 执行上电命令
@@ -662,9 +668,37 @@ run_with_success_detection() {
     ) &
     local monitor_pid=$!
 
-    # 设置超时等待进程完成
-    timeout "${timeout_minutes}m" tail --pid=$pid -f /dev/null 2>/dev/null || true
-    local exit_code=$?
+    # 等待主命令完成
+    wait $pid 2>/dev/null || true
+    local main_exit_code=$?
+
+    # 对于开发板测试，主命令可能在 U-Boot 启动后就退出了
+    # 此时应该继续监控一段时间，等待内核启动完成
+    local is_powered_on=$(head -1 "$power_flag_file")
+    if [ "$is_powered_on" == "true" ] && [ -n "$board_name" ]; then
+        local power_on_timestamp=$(tail -1 "$power_flag_file")
+        local current_time=$(date +%s)
+        local elapsed=$((current_time - power_on_timestamp))
+        local remaining_time=$((timeout_minutes * 60 - elapsed))
+        
+        if [ $remaining_time -gt 0 ]; then
+            log "  U-Boot 阶段完成，继续等待内核启动 (剩余 ${remaining_time}s)..."
+            # 继续监控成功标识符一段时间
+            local extra_wait=$remaining_time
+            while [ $extra_wait -gt 0 ]; do
+                local current_status=$(cat "$status_file")
+                if [ "$current_status" == "success" ]; then
+                    log "  检测到成功标识符!"
+                    break
+                elif [[ "$current_status" == error:* ]]; then
+                    log "  检测到错误标识符!"
+                    break
+                fi
+                sleep 1
+                ((extra_wait--))
+            done
+        fi
+    fi
 
     # 等待监控进程完成
     wait $monitor_pid 2>/dev/null || true
@@ -673,7 +707,7 @@ run_with_success_detection() {
     local status=$(cat "$status_file")
 
     # 清理
-    rm -f "$fifo" "$status_file"
+    rm -f "$fifo" "$status_file" "$power_flag_file"
     
     # 如果是开发板测试，清理资源（关闭电源、释放串口等）
     if [ -n "$board_name" ] && [ -n "$test_dir" ]; then
@@ -686,16 +720,15 @@ run_with_success_detection() {
         return 1
     elif [ "$status" = "success" ]; then
         return 0
-    elif [ $exit_code -eq 124 ]; then
+    elif [ $main_exit_code -eq 124 ]; then
         return 124
     else
-        # 进程退出但没有检测到成功或错误标识符，检查退出码
-        if [ $exit_code -eq 0 ]; then
-            # 进程正常退出，可能是测试完成
+        # 检查是否是因为检测到成功标识符而结束
+        if [ "$status" = "success" ]; then
             return 0
-        else
-            return 1
         fi
+        # 进程退出但没有检测到成功标识符，视为失败
+        return 1
     fi
 }
 
