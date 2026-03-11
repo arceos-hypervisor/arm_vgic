@@ -35,6 +35,8 @@ USE_GIT=false
 GIT_BRANCH=""
 CLEAN_RESULTS=false
 AUTO_MODE=false
+LIST_JSON=false
+LIST_AUTO=false
 
 # 帮助信息
 show_help() {
@@ -57,6 +59,8 @@ Hypervisor Test Framework - 本地测试脚本
   --branch BRANCH            指定 git 分支 (仅与 --from-git 一起使用)
   --clean                    清理测试生成的 test-results 目录
   --auto                     根据 rust-toolchain.toml 中的 targets 自动选择测试
+  --list-auto                列出自动检测的测试目标 (JSON 格式)
+  --list-json                列出所有测试目标 (JSON 格式，用于 CI matrix)
   -h, --help                 显示此帮助
 
 测试目标:
@@ -142,6 +146,15 @@ parse_args() {
                 shift
                 ;;
             --auto)
+                AUTO_MODE=true
+                shift
+                ;;
+            --list-json)
+                LIST_JSON=true
+                shift
+                ;;
+            --list-auto)
+                LIST_AUTO=true
                 AUTO_MODE=true
                 shift
                 ;;
@@ -318,7 +331,7 @@ DEFAULT_TARGETS='[
     "type": "qemu",
     "arch": "riscv64",
     "repo": {"url": "https://github.com/Starry-OS/StarryOS", "branch": "main"},
-    "build": {"command": "make build", "timeout_minutes": 30},
+    "build": {"command": "make build", "timeout_minutes": 15},
     "test": {},
     "patch": {"path_template": "../component"}
   },
@@ -327,7 +340,7 @@ DEFAULT_TARGETS='[
     "type": "qemu",
     "arch": "loongarch64",
     "repo": {"url": "https://github.com/Starry-OS/StarryOS", "branch": "main"},
-    "build": {"command": "make build", "timeout_minutes": 30},
+    "build": {"command": "make build", "timeout_minutes": 15},
     "test": {},
     "patch": {"path_template": "../component"}
   },
@@ -336,7 +349,7 @@ DEFAULT_TARGETS='[
     "type": "qemu",
     "arch": "aarch64",
     "repo": {"url": "https://github.com/Starry-OS/StarryOS", "branch": "main"},
-    "build": {"command": "make build", "timeout_minutes": 30},
+    "build": {"command": "make build", "timeout_minutes": 15},
     "test": {},
     "patch": {"path_template": "../component"}
   },
@@ -345,7 +358,7 @@ DEFAULT_TARGETS='[
     "type": "qemu",
     "arch": "x86_64",
     "repo": {"url": "https://github.com/Starry-OS/StarryOS", "branch": "main"},
-    "build": {"command": "make build", "timeout_minutes": 30},
+    "build": {"command": "make build", "timeout_minutes": 15},
     "test": {},
     "patch": {"path_template": "../component"}
   },
@@ -473,7 +486,8 @@ setup_output() {
         OUTPUT_DIR="$COMPONENT_DIR/test-results"
     fi
 
-    mkdir -p "$OUTPUT_DIR/logs"
+    sudo mkdir -p "$OUTPUT_DIR/logs"
+    sudo chmod -R 777 "$OUTPUT_DIR"
     log_debug "输出目录: $OUTPUT_DIR"
 }
 
@@ -704,12 +718,12 @@ check_component_used() {
 
 # 检查并关闭占用端口5555的程序
 kill_port_5555_processes() {
-    local pids=$(lsof -ti :5555 2>/dev/null)
+    local pids=$(sudo lsof -ti :5555 2>/dev/null)
     
     if [ -n "$pids" ]; then
         for pid in $pids; do
             log_debug "    关闭进程: PID=$pid"
-            kill -9 $pid 2>/dev/null || true
+            sudo kill -9 $pid 2>/dev/null || true
         done
         # 等待端口释放
         sleep 1
@@ -854,9 +868,9 @@ run_test_target() {
         cd "$test_dir"
         
         # 检查是否已添加该组件的 patch（只在 [patch.*] section 中检查）
-        # 使用 awk 提取所有 [patch.*] section 的内容并检查
-        local already_patched=$(awk '/^\[patch\./,/^\[/ {print}' Cargo.toml 2>/dev/null | grep -q "^$COMPONENT_CRATE\s*=" && echo "yes" || echo "no")
-        if [ "$already_patched" == "yes" ]; then
+        # 使用 grep 检查 patch section 中是否已有该组件
+        if grep -E "^\[patch\." Cargo.toml >/dev/null 2>&1 && \
+           grep -A 100 "^\[patch\." Cargo.toml | grep -q "^$COMPONENT_CRATE\s*="; then
             log "  组件 $COMPONENT_CRATE 已在 patch 中"
         else
             # 检查是否已存在 [patch.$patch_section] section
@@ -948,7 +962,8 @@ EOF
             
             # 创建 TFTP 目录
             local bin_dir=$(echo "$target_config" | jq -r '.test.bin_dir // "/tmp/tftp"')
-            mkdir -p "$bin_dir"
+            sudo mkdir -p "$bin_dir"
+            sudo chmod 777 "$bin_dir"
             log "  TFTP 目录已准备: $bin_dir"
             
             # 下载镜像和配置（类似 QEMU 测试）
@@ -960,7 +975,8 @@ EOF
                 
                 # 创建镜像目录
                 local IMAGE_DIR="/tmp/.axvisor-images"
-                mkdir -p "$IMAGE_DIR"
+                sudo mkdir -p "$IMAGE_DIR"
+                sudo chmod 777 "$IMAGE_DIR"
                 
                 # 检查并下载镜像
                 IFS=',' read -ra CONFIGS <<< "$vmconfigs"
@@ -1044,7 +1060,8 @@ EOF
                 
                 # 创建镜像目录
                 local IMAGE_DIR="/tmp/.axvisor-images"
-                mkdir -p "$IMAGE_DIR"
+                sudo mkdir -p "$IMAGE_DIR"
+                sudo chmod 777 "$IMAGE_DIR"
                 
                 # 安装 ostool（如果尚未安装）
                 if ! command -v ostool &> /dev/null; then
@@ -1428,11 +1445,28 @@ main() {
         fi
         if [ -d "$OUTPUT_DIR" ]; then
             log "清理测试目录: $OUTPUT_DIR"
-            rm -rf "$OUTPUT_DIR"
+            sudo rm -rf "$OUTPUT_DIR"
             log_success "清理完成"
         else
             log "测试目录不存在: $OUTPUT_DIR"
         fi
+        exit 0
+    fi
+
+    # 处理 --list-json: 输出所有测试目标的 JSON 数组 (用于 CI matrix)
+    # 必须在任何日志输出之前处理
+    if [ "$LIST_JSON" == true ]; then
+        load_config >/dev/null 2>&1
+        local targets=$(echo "$CONFIG" | jq -c '[.test_targets[].name]')
+        echo "$targets"
+        exit 0
+    fi
+
+    # 处理 --list-auto: 输出自动检测的测试目标 (用于 CI matrix)
+    if [ "$LIST_AUTO" == true ]; then
+        load_config >/dev/null 2>&1
+        local targets=$(get_test_targets)
+        echo "$targets" | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -s -c
         exit 0
     fi
 
