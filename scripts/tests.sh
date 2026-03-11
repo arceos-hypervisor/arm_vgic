@@ -480,6 +480,65 @@ load_config() {
     log_debug "组件: $COMPONENT_NAME ($COMPONENT_CRATE)"
 }
 
+# 开发板资源锁目录
+BOARD_LOCK_DIR="/tmp/hypervisor-board-locks"
+
+# 获取开发板资源锁（等待直到获取）
+# 参数: board_name, max_wait_minutes
+acquire_board_lock() {
+    local board_name=$1
+    local max_wait=${2:-60}  # 默认等待60分钟
+    local lock_file="$BOARD_LOCK_DIR/${board_name}.lock"
+    
+    mkdir -p "$BOARD_LOCK_DIR"
+    
+    local waited=0
+    local wait_interval=5
+    
+    while true; do
+        # 尝试创建锁文件（原子操作）
+        if (set -C; echo $$ > "$lock_file") 2>/dev/null; then
+            log "  获取开发板锁: $board_name (PID=$$)"
+            return 0
+        fi
+        
+        # 检查持有锁的进程是否还存在
+        local lock_pid=$(cat "$lock_file" 2>/dev/null || true)
+        if [ -n "$lock_pid" ] && ! kill -0 "$lock_pid" 2>/dev/null; then
+            log "  清理失效的锁 (PID=$lock_pid)"
+            rm -f "$lock_file"
+            continue
+        fi
+        
+        # 检查是否超时
+        if [ $waited -ge $((max_wait * 60)) ]; then
+            log_error "  等待开发板锁超时: $board_name (等待了 ${max_wait} 分钟)"
+            return 1
+        fi
+        
+        if [ $waited -eq 0 ]; then
+            log "  开发板 $board_name 正在被其他测试占用，等待中... (持有者 PID=$lock_pid)"
+        fi
+        
+        sleep $wait_interval
+        waited=$((waited + wait_interval))
+    done
+}
+
+# 释放开发板资源锁
+release_board_lock() {
+    local board_name=$1
+    local lock_file="$BOARD_LOCK_DIR/${board_name}.lock"
+    
+    if [ -f "$lock_file" ]; then
+        local lock_pid=$(cat "$lock_file" 2>/dev/null || true)
+        if [ "$lock_pid" == "$$"" ]; then
+            rm -f "$lock_file"
+            log "  释放开发板锁: $board_name"
+        fi
+    fi
+}
+
 # 设置输出目录
 setup_output() {
     if [ -z "$OUTPUT_DIR" ]; then
