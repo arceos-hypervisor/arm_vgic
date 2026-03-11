@@ -374,7 +374,7 @@ DEFAULT_TARGETS='[
       "build_config": "configs/board/phytiumpi.toml",
       "uboot_config": ".github/workflows/uboot.toml",
       "vmconfigs": "configs/vms/arceos-aarch64-e2000-smp1.toml",
-      "vmimage_name": "phytiumpi_arceos",
+      "vmimage_name": "phytiumpi_arceos,phytiumpi_linux",
       "bin_dir": "/tmp/tftp"
     },
     "patch": {"path_template": "../component"}
@@ -408,7 +408,7 @@ DEFAULT_TARGETS='[
       "build_config": "configs/board/roc-rk3568-pc.toml",
       "uboot_config": ".github/workflows/uboot.toml",
       "vmconfigs": "configs/vms/arceos-aarch64-rk3568-smp1.toml",
-      "vmimage_name": "roc-rk3568-pc_arceos",
+      "vmimage_name": "roc-rk3568-pc_arceos,roc-rk3568-pc_linux",
       "bin_dir": "/tmp/tftp"
     },
     "patch": {"path_template": "../component"}
