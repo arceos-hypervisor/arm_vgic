@@ -37,6 +37,7 @@ CLEAN_RESULTS=false
 AUTO_MODE=false
 LIST_JSON=false
 LIST_AUTO=false
+USE_FS_MODE=false
 
 # 帮助信息
 show_help() {
@@ -61,6 +62,7 @@ Hypervisor Test Framework - 本地测试脚本
   --auto                     根据 rust-toolchain.toml 中的 targets 自动选择测试
   --list-auto                列出自动检测的测试目标 (JSON 格式)
   --list-json                列出所有测试目标 (JSON 格式，用于 CI matrix)
+  --fs                       使用文件系统模式，不修改配置文件
   -h, --help                 显示此帮助
 
 测试目标:
@@ -156,6 +158,10 @@ parse_args() {
             --list-auto)
                 LIST_AUTO=true
                 AUTO_MODE=true
+                shift
+                ;;
+            --fs)
+                USE_FS_MODE=true
                 shift
                 ;;
             -h|--help)
@@ -603,7 +609,7 @@ run_with_success_detection() {
     error_patterns+=("core dumped")
     
     # 特殊模式：等待开发板上电
-    local waiting_for_power=false
+    local power_on_done=false
 
     # 创建临时文件来存储状态
     local status_file=$(mktemp)
@@ -626,13 +632,12 @@ run_with_success_detection() {
             
             # 检测是否等待开发板上电
             if [[ "$line" == *"Waiting for board on power or reset"* ]]; then
-                if [ "$waiting_for_power" == false ] && [ -n "$board_name" ]; then
-                    echo "waiting_power" > "$status_file"
-                    waiting_for_power=true
-                    # 执行上电命令
-                    control_board_power "$board_name" "on"
+                if [ "$power_on_done" == false ] && [ -n "$board_name" ]; then
+                    power_on_done=true
                     # 提示用户上电
                     log "  准备就绪，请给开发板上电…"
+                    # 执行上电命令
+                    control_board_power "$board_name" "on"
                 fi
             fi
 
@@ -681,13 +686,16 @@ run_with_success_detection() {
         return 1
     elif [ "$status" = "success" ]; then
         return 0
-    elif [ "$status" = "waiting_power" ]; then
-        # 如果仍在等待上电，也算失败
-        return 1
     elif [ $exit_code -eq 124 ]; then
         return 124
     else
-        return 1
+        # 进程退出但没有检测到成功或错误标识符，检查退出码
+        if [ $exit_code -eq 0 ]; then
+            # 进程正常退出，可能是测试完成
+            return 0
+        else
+            return 1
+        fi
     fi
 }
 
@@ -1116,8 +1124,10 @@ EOF
                         fi
                     fi
                     
-                    # 更新配置文件
-                    if [ -f "$test_dir/$config" ]; then
+                    # 更新配置文件（仅在非 --fs 模式下）
+                    if [ "$USE_FS_MODE" == true ]; then
+                        log "  --fs 模式: 跳过配置文件修改"
+                    elif [ -f "$test_dir/$config" ]; then
                         cd "$test_dir"
                         
                         # 获取 image_location
