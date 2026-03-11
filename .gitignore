@@ -2,3 +2,5 @@
 Cargo.lock
 .vscode/
 /test-results
+/.uboot.json
+/.uboot.toml
