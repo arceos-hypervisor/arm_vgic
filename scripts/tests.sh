@@ -874,7 +874,6 @@ run_test_target() {
     
     log_debug "  仓库: $repo_url ($repo_branch)"
     log_debug "  类型: $test_type"
-    log_debug "  构建: $build_cmd"
     log_debug "  超时: ${timeout_min}分钟"
     
     # 测试目录
