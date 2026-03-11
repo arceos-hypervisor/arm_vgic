@@ -500,10 +500,10 @@ control_board_power() {
     # 根据开发板类型确定电源控制串口
     case "$board_name" in
         phytiumpi)
-            power_serial="/dev/ttyUSB0"
+            power_serial="/dev/ttyUSB1"
             ;;
         roc-rk3568-pc)
-            power_serial="/dev/ttyUSB3"
+            power_serial="/dev/ttyUSB2"
             ;;
         *)
             log_debug "  未知开发板类型: $board_name，跳过电源控制"
