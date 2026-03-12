@@ -1385,20 +1385,19 @@ EOF
 
             if [ -f "$build_toml" ]; then
                 if [ "$USE_FS_MODE" == true ]; then
-                    # --fs 模式: 仅修改 vm_configs 为文件系统路径
                     local fs_vm_configs=""
                     case "$target_name" in
                         axvisor-board-phytiumpi-arceos)
-                            fs_vm_configs='["/guest/arceos/arceos-aarch64-e2000-smp1.toml"]'
+                            fs_vm_configs='["configs/vms/arceos-aarch64-e2000-smp1.toml"]'
                             ;;
                         axvisor-board-phytiumpi-linux)
-                            fs_vm_configs='["/guest/linux/linux-aarch64-e2000-smp1.toml"]'
+                            fs_vm_configs='["configs/vms/linux-aarch64-e2000-smp1.toml"]'
                             ;;
                         axvisor-board-roc-rk3568-pc-arceos)
-                            fs_vm_configs='["/userdata/rootfs_overlay/guest/arceos/arceos-aarch64-rk3568-smp1.toml"]'
+                            fs_vm_configs='["configs/vms/arceos-aarch64-rk3568-smp1.toml"]'
                             ;;
                         axvisor-board-roc-rk3568-pc-linux)
-                            fs_vm_configs='["/userdata/rootfs_overlay/guest/linux/linux-aarch64-rk3568-smp1.toml"]'
+                            fs_vm_configs='["configs/vms/linux-aarch64-rk3568-smp1.toml"]'
                             ;;
                         *)
                             log_warn "  未知目标: $target_name，使用默认 vm_configs"
