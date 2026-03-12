@@ -1380,28 +1380,32 @@ EOF
             fi
 
             # 步骤 2: 修改 .build.toml 文件
-            log "  更新 .build.toml 配置..."
-            local build_toml=".build.toml"
-
-            if [ -f "$build_toml" ]; then
-                # 使用 awk 来替换 features 和 vm_configs
-                awk -v vm_configs="$vm_configs_json" '
-                    /^features = \[/ { in_features=1; print "features = ["; print "    # \"ept-level-4\","; print "    \"dyn-plat\","; print "    \"axstd/bus-mmio\","; print "]"; next }
-                    in_features { if(/^\]/) { in_features=0 } next }
-                    /^vm_configs = \[/ { in_vm=1; next }
-                    in_vm { if(/^\]/) { in_vm=0 } next }
-                    /^log = / { print $0 "\nvm_configs = " vm_configs; next }
-                    { print }
-                ' "$build_toml" > "$build_toml.tmp" && mv "$build_toml.tmp" "$build_toml"
-
-                log_success "  .build.toml 更新完成"
-                log_debug "    - Features 已更新"
-                log_debug "    - vm_configs: $vm_configs_json"
+            if [ "$USE_FS_MODE" == true ]; then
+                log "  --fs 模式: 跳过 .build.toml 配置文件修改"
             else
-                log_error "  未找到 .build.toml 文件"
-                echo "failed" > "$status_file"
-                cd "$COMPONENT_DIR"
-                return 1
+                log "  更新 .build.toml 配置..."
+                local build_toml=".build.toml"
+
+                if [ -f "$build_toml" ]; then
+                    # 使用 awk 来替换 features 和 vm_configs
+                    awk -v vm_configs="$vm_configs_json" '
+                        /^features = \[/ { in_features=1; print "features = ["; print "    # \"ept-level-4\","; print "    \"dyn-plat\","; print "    \"axstd/bus-mmio\","; print "]"; next }
+                        in_features { if(/^\]/) { in_features=0 } next }
+                        /^vm_configs = \[/ { in_vm=1; next }
+                        in_vm { if(/^\]/) { in_vm=0 } next }
+                        /^log = / { print $0 "\nvm_configs = " vm_configs; next }
+                        { print }
+                    ' "$build_toml" > "$build_toml.tmp" && mv "$build_toml.tmp" "$build_toml"
+
+                    log_success "  .build.toml 更新完成"
+                    log_debug "    - Features 已更新"
+                    log_debug "    - vm_configs: $vm_configs_json"
+                else
+                    log_error "  未找到 .build.toml 文件"
+                    echo "failed" > "$status_file"
+                    cd "$COMPONENT_DIR"
+                    return 1
+                fi
             fi
 
             # 步骤 3: 检查 .uboot.toml 是否存在，不存在则从配置文件读取或提示用户输入
