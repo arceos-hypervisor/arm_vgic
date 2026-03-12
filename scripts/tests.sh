@@ -590,6 +590,7 @@ run_with_success_detection() {
     local error_patterns=()
 
     # 定义成功标识符模式（支持通配符）
+    success_patterns+=("Welcome to")
     success_patterns+=("test pass!")
     success_patterns+=("All tests passed!")
     success_patterns+=("simple_sleep passed!")
@@ -632,6 +633,9 @@ run_with_success_detection() {
             # 输出到日志
             echo "$line" >> "$log_file"
             
+            # 同时输出到标准输出，让命令行显示执行过程
+            echo "$line"
+            
             # 检测是否等待开发板上电
             if [[ "$line" == *"Waiting for board on power or reset"* ]]; then
                 if [ "$power_on_done" == false ] && [ -n "$board_name" ]; then
@@ -671,7 +675,7 @@ run_with_success_detection() {
     local main_exit_code=$?
 
     # 对于开发板测试，主命令可能在 U-Boot 启动后就退出了
-    # 此时应该继续监控一段时间，等待内核启动完成
+    # 此时应该继续监控串口输出，等待内核启动完成
     local is_powered_on=$(head -1 "$power_flag_file")
     if [ "$is_powered_on" == "true" ] && [ -n "$board_name" ]; then
         local power_on_timestamp=$(tail -1 "$power_flag_file")
@@ -680,21 +684,69 @@ run_with_success_detection() {
         local remaining_time=$((timeout_minutes * 60 - elapsed))
         
         if [ $remaining_time -gt 0 ]; then
-            log "  U-Boot 阶段完成，继续等待内核启动 (剩余 ${remaining_time}s)..."
-            # 继续监控成功标识符一段时间
-            local extra_wait=$remaining_time
-            while [ $extra_wait -gt 0 ]; do
-                local current_status=$(cat "$status_file")
-                if [ "$current_status" == "success" ]; then
-                    log "  检测到成功标识符!"
-                    break
-                elif [[ "$current_status" == error:* ]]; then
-                    log "  检测到错误标识符!"
-                    break
-                fi
-                sleep 1
-                ((extra_wait--))
-            done
+            log "  U-Boot 阶段完成，继续监控串口输出 (剩余 ${remaining_time}s)..."
+            
+            # 从 .uboot.json 获取串口设备
+            local uboot_json_file="$COMPONENT_DIR/.uboot.json"
+            local serial_port=""
+            if [ -f "$uboot_json_file" ]; then
+                serial_port=$(jq -r ".boards[\"$board_name\"].serial // empty" "$uboot_json_file" 2>/dev/null)
+            fi
+            
+            # 如果找到了串口设备，继续读取串口输出
+            if [ -n "$serial_port" ] && [ -e "$serial_port" ]; then
+                log "  等待串口 $serial_port 释放后继续读取..."
+                
+                # 等待串口设备可用（cargo osrun 退出后释放串口）
+                local wait_count=0
+                while [ $wait_count -lt 10 ]; do
+                    if ! lsof "$serial_port" &>/dev/null; then
+                        break
+                    fi
+                    sleep 1
+                    ((wait_count++))
+                done
+                
+                log "  从串口 $serial_port 继续读取输出..."
+                
+                # 使用 timeout 和 cat 读取串口输出，直接输出到 stdout 和日志
+                timeout $remaining_time cat "$serial_port" 2>/dev/null | while IFS= read -r line; do
+                    if [ -n "$line" ]; then
+                        echo "$line"  # 输出到 stdout
+                        echo "$line" >> "$log_file"  # 输出到日志
+                        
+                        # 检测成功标识符
+                        if echo "$line" | grep -qE "Welcome to|test pass!|All tests passed!|Hello, world!|root@firefly:~#|Set hostname to"; then
+                            log "  检测到成功标识符!"
+                            echo "success" > "$status_file"
+                            exit 0
+                        fi
+                        
+                        # 检测错误标识符
+                        if echo "$line" | grep -qE "FAILED|panicked|segmentation fault|core dumped"; then
+                            log "  检测到错误标识符!"
+                            echo "error:detected" > "$status_file"
+                            exit 1
+                        fi
+                    fi
+                done
+            else
+                # 没有串口设备，只能等待
+                log_warn "  未找到串口设备配置"
+                local extra_wait=$remaining_time
+                while [ $extra_wait -gt 0 ]; do
+                    local current_status=$(cat "$status_file")
+                    if [ "$current_status" == "success" ]; then
+                        log "  检测到成功标识符!"
+                        break
+                    elif [[ "$current_status" == error:* ]]; then
+                        log "  检测到错误标识符!"
+                        break
+                    fi
+                    sleep 1
+                    ((extra_wait--))
+                done
+            fi
         fi
     fi
 
