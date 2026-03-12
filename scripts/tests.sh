@@ -709,43 +709,32 @@ run_with_success_detection() {
                 
                 log "  从串口 $serial_port 继续读取输出..."
                 
-                # 使用 timeout 和 cat 读取串口输出，直接输出到 stdout 和日志
-                timeout $remaining_time cat "$serial_port" 2>/dev/null | while IFS= read -r line; do
-                    if [ -n "$line" ]; then
-                        echo "$line"  # 输出到 stdout
-                        echo "$line" >> "$log_file"  # 输出到日志
-                        
-                        # 检测成功标识符
-                        if echo "$line" | grep -qE "Welcome to|test pass!|All tests passed!|Hello, world!|root@firefly:~#|Set hostname to"; then
-                            log "  检测到成功标识符!"
-                            echo "success" > "$status_file"
-                            exit 0
-                        fi
-                        
-                        # 检测错误标识符
-                        if echo "$line" | grep -qE "FAILED|panicked|segmentation fault|core dumped"; then
-                            log "  检测到错误标识符!"
-                            echo "error:detected" > "$status_file"
-                            exit 1
-                        fi
-                    fi
-                done
-            else
-                # 没有串口设备，只能等待
-                log_warn "  未找到串口设备配置"
+                # 后台读取串口输出
+                timeout $remaining_time cat "$serial_port" 2>/dev/null | tee -a "$log_file" &
+                local serial_pid=$!
+                
+                # 监控日志文件检测成功/失败标识符
                 local extra_wait=$remaining_time
                 while [ $extra_wait -gt 0 ]; do
-                    local current_status=$(cat "$status_file")
-                    if [ "$current_status" == "success" ]; then
+                    if grep -qE "Welcome to|test pass!|All tests passed!|Hello, world!|root@firefly:~#|Set hostname to" "$log_file" 2>/dev/null; then
                         log "  检测到成功标识符!"
+                        echo "success" > "$status_file"
                         break
-                    elif [[ "$current_status" == error:* ]]; then
+                    fi
+                    if grep -qE "FAILED|panicked|segmentation fault|core dumped" "$log_file" 2>/dev/null; then
                         log "  检测到错误标识符!"
+                        echo "error:detected" > "$status_file"
                         break
                     fi
                     sleep 1
                     ((extra_wait--))
                 done
+                
+                # 终止串口读取进程
+                kill $serial_pid 2>/dev/null || true
+            else
+                # 没有串口设备，只能等待
+                log_warn "  未找到串口设备配置"
             fi
         fi
     fi
