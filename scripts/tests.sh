@@ -5,7 +5,7 @@
 #
 # 用法:
 #   ./tests.sh                           # 运行所有测试
-#   ./tests.sh --target axvisor          # 仅测试指定目标
+#   ./tests.sh --target axvisor-qemu     # 仅测试指定目标
 #   ./tests.sh --config /path/to/.test-config.json
 #   ./tests.sh --component-dir /path/to/component
 #
@@ -38,6 +38,7 @@ AUTO_MODE=false
 LIST_JSON=false
 LIST_AUTO=false
 USE_FS_MODE=false
+PRINT_OUTPUT=false
 
 # 帮助信息
 show_help() {
@@ -63,6 +64,7 @@ Hypervisor Test Framework - 本地测试脚本
   --list-auto                列出自动检测的测试目标 (JSON 格式)
   --list-json                列出所有测试目标 (JSON 格式，用于 CI matrix)
   --fs                       使用文件系统模式，不修改配置文件
+  --print                    打印 U-Boot 和串口输出到命令行
   -h, --help                 显示此帮助
 
 测试目标:
@@ -162,6 +164,10 @@ parse_args() {
                 ;;
             --fs)
                 USE_FS_MODE=true
+                shift
+                ;;
+            --print)
+                PRINT_OUTPUT=true
                 shift
                 ;;
             -h|--help)
@@ -285,7 +291,7 @@ check_dependencies() {
     log_success "依赖检查通过"
 }
 
-# 默认测试目标（与 .github/workflows/test.yml 保持一致）
+# 默认测试目标
 DEFAULT_TARGETS='[
   {
     "name": "axvisor-qemu-aarch64-arceos",
@@ -531,7 +537,7 @@ control_board_power() {
     # 执行电源控制
     if [ "$action" == "on" ]; then
         mbpoll -m rtu -a 1 -r 1 -t 0 -b 38400 -P none -v "$power_serial" 0
-        sleep 2
+        sleep 3
         log "  给开发板上电... ($power_serial)"
         mbpoll -m rtu -a 1 -r 1 -t 0 -b 38400 -P none -v "$power_serial" 1
     elif [ "$action" == "off" ]; then
@@ -550,8 +556,9 @@ cleanup_board_resources() {
     # 1. 关闭开发板电源
     control_board_power "$board_name" "off"
     
-    # 2. 杀掉可能残留的 cargo-osrun 进程
-    local pids=$(ps aux | grep "cargo-osrun.*$test_dir" | grep -v grep | awk '{print $2}')
+    # 2. 杀掉可能残留的 cargo-osrun 进程（多种匹配方式）
+    # 方式1: 通过命令行匹配
+    local pids=$(ps aux | grep -E "cargo-osr|cargo osr" | grep -v grep | awk '{print $2}')
     if [ -n "$pids" ]; then
         for pid in $pids; do
             log_debug "    关闭残留进程: PID=$pid"
@@ -559,10 +566,10 @@ cleanup_board_resources() {
         done
     fi
     
-    # 3. 释放串口（从 .uboot.json 读取）
-    local uboot_json_file="$COMPONENT_DIR/.uboot.json"
-    if [ -f "$uboot_json_file" ]; then
-        local serial_port=$(jq -r ".boards[\"$board_name\"].serial // empty" "$uboot_json_file" 2>/dev/null)
+    # 3. 释放串口
+    local uboot_toml_file="$COMPONENT_DIR/.uboot.toml"
+    if [ -f "$uboot_toml_file" ]; then
+        local serial_port=$(jq -r ".boards[\"$board_name\"].serial // empty" "$uboot_toml_file" 2>/dev/null)
         if [ -n "$serial_port" ] && [ -e "$serial_port" ]; then
             local serial_pids=$(sudo lsof -ti "$serial_port" 2>/dev/null || true)
             if [ -n "$serial_pids" ]; then
@@ -633,8 +640,8 @@ run_with_success_detection() {
             # 输出到日志
             echo "$line" >> "$log_file"
             
-            # 同时输出到标准输出，让命令行显示执行过程
-            echo "$line"
+            # 根据 --print 选项决定是否输出到标准输出
+            [[ "$PRINT_OUTPUT" == true ]] && echo "$line"
             
             # 检测是否等待开发板上电
             if [[ "$line" == *"Waiting for board on power or reset"* ]]; then
@@ -695,7 +702,6 @@ run_with_success_detection() {
             
             # 如果找到了串口设备，继续读取串口输出
             if [ -n "$serial_port" ] && [ -e "$serial_port" ]; then
-                log "  等待串口 $serial_port 释放后继续读取..."
                 
                 # 等待串口设备可用（cargo osrun 退出后释放串口）
                 local wait_count=0
@@ -705,23 +711,30 @@ run_with_success_detection() {
                     fi
                     sleep 1
                     ((wait_count++))
-                done
+                done       
                 
-                log "  从串口 $serial_port 继续读取输出..."
+                # 保存当前终端设置
+                local saved_stty=$(stty -g 2>/dev/null) || true
                 
-                # 后台读取串口输出
-                timeout $remaining_time cat "$serial_port" 2>/dev/null | tee -a "$log_file" &
+                # 根据 --print 选项决定是否打印到标准输出
+                if [[ "$PRINT_OUTPUT" == true ]]; then
+                    timeout $remaining_time cat "$serial_port" 2>/dev/null | tee -a "$log_file" &
+                else
+                    timeout $remaining_time cat "$serial_port" 2>/dev/null >> "$log_file" &
+                fi
                 local serial_pid=$!
                 
                 # 监控日志文件检测成功/失败标识符
                 local extra_wait=$remaining_time
                 while [ $extra_wait -gt 0 ]; do
                     if grep -qE "Welcome to|test pass!|All tests passed!|Hello, world!|root@firefly:~#|Set hostname to" "$log_file" 2>/dev/null; then
+                        echo -ne "\r\033[K"  # 清除当前行
                         log "  检测到成功标识符!"
                         echo "success" > "$status_file"
                         break
                     fi
                     if grep -qE "FAILED|panicked|segmentation fault|core dumped" "$log_file" 2>/dev/null; then
+                        echo -ne "\r\033[K"  # 清除当前行
                         log "  检测到错误标识符!"
                         echo "error:detected" > "$status_file"
                         break
@@ -732,6 +745,13 @@ run_with_success_detection() {
                 
                 # 终止串口读取进程
                 kill $serial_pid 2>/dev/null || true
+                wait $serial_pid 2>/dev/null || true
+                
+                # 恢复终端设置
+                if [ -n "$saved_stty" ]; then
+                    stty "$saved_stty" 2>/dev/null || true
+                fi
+                echo -ne "\r\033[K"  # 清除当前行，确保后续输出整齐
             else
                 # 没有串口设备，只能等待
                 log_warn "  未找到串口设备配置"
@@ -741,6 +761,9 @@ run_with_success_detection() {
 
     # 等待监控进程完成
     wait $monitor_pid 2>/dev/null || true
+
+    # 确保终端恢复正常（双重保险）
+    stty sane 2>/dev/null || true
 
     # 读取状态
     local status=$(cat "$status_file")
