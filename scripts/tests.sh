@@ -556,8 +556,7 @@ cleanup_board_resources() {
     # 1. 关闭开发板电源
     control_board_power "$board_name" "off"
     
-    # 2. 杀掉可能残留的 cargo-osrun 进程（多种匹配方式）
-    # 方式1: 通过命令行匹配
+    # 2. 杀掉可能残留的 cargo-osrun 进程
     local pids=$(ps aux | grep -E "cargo-osr|cargo osr" | grep -v grep | awk '{print $2}')
     if [ -n "$pids" ]; then
         for pid in $pids; do
@@ -745,7 +744,9 @@ run_with_success_detection() {
                 
                 # 终止串口读取进程
                 kill $serial_pid 2>/dev/null || true
-                wait $serial_pid 2>/dev/null || true
+                sleep 0.5
+                pkill -9 -P $serial_pid 2>/dev/null || true
+                kill -9 $serial_pid 2>/dev/null || true
                 
                 # 恢复终端设置
                 if [ -n "$saved_stty" ]; then
