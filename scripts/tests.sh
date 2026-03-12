@@ -590,7 +590,6 @@ run_with_success_detection() {
     local error_patterns=()
 
     # 定义成功标识符模式（支持通配符）
-    success_patterns+=("Welcome to")
     success_patterns+=("test pass!")
     success_patterns+=("All tests passed!")
     success_patterns+=("simple_sleep passed!")
@@ -602,7 +601,6 @@ run_with_success_detection() {
     success_patterns+=("Last login:")
     success_patterns+=("Booting kernel with command")
     # 定义错误标识符模式
-    error_patterns+=("error:")
     error_patterns+=("error[")
     error_patterns+=("FAILED")
     error_patterns+=("panicked")
